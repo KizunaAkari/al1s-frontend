@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+    <title>MAA 多目标点击测试</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        min-height: 100%;
+        margin: 0;
+        background: #0b1220;
+        color: #d9e7f5;
+        font-family: sans-serif;
+      }
+
+      main {
+        width: min(92vw, 760px);
+        margin: 0 auto;
+        padding: 56px 0;
+      }
+
+      h1 {
+        margin: 0 0 12px;
+        font-size: 28px;
+      }
+
+      p {
+        margin: 0 0 34px;
+        color: #8da3ba;
+      }
+
+      #targets {
+        display: grid;
+        gap: 28px;
+      }
+
+      .target-row {
+        display: grid;
+        grid-template-columns: 96px 1fr 90px;
+        align-items: center;
+        gap: 24px;
+        min-height: 126px;
+        padding: 15px 22px;
+        border: 1px solid #263d55;
+        border-radius: 16px;
+        background: #121e2d;
+      }
+
+      .match-target {
+        display: grid;
+        place-items: center;
+        width: 88px;
+        height: 88px;
+        border: 5px solid #3fe0bd;
+        border-radius: 18px;
+        background: #173c3b;
+        color: #f4fffc;
+        font-size: 52px;
+        font-weight: 800;
+        line-height: 1;
+      }
+
+      .target-row span {
+        font-size: 20px;
+      }
+
+      .remove-target {
+        width: 76px;
+        height: 58px;
+        border: 0;
+        border-radius: 12px;
+        background: #ff6f7d;
+        color: white;
+        font-size: 18px;
+        font-weight: 700;
+      }
+
+      #complete {
+        display: none;
+        margin-top: 80px;
+        padding: 40px 20px;
+        border: 2px solid #3fe0bd;
+        border-radius: 18px;
+        color: #55e5c6;
+        text-align: center;
+        font-size: 28px;
+        font-weight: 700;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>多目标循环点击测试</h1>
+      <p>每次点击目标右侧的“移除”按钮，目标将从页面中消失。</p>
+      <section id="targets"></section>
+      <div id="complete">全部目标已清除</div>
+    </main>
+    <script>
+      const targets = document.querySelector('#targets')
+      const complete = document.querySelector('#complete')
+
+      for (let index = 1; index <= 4; index += 1) {
+        const row = document.createElement('article')
+        row.className = 'target-row'
+        row.innerHTML = `
+          <div class="match-target">+</div>
+          <span>重复目标 ${index}</span>
+          <button class="remove-target" type="button">移除</button>
+        `
+        row.querySelector('button').addEventListener('click', () => {
+          row.remove()
+          if (!targets.children.length) complete.style.display = 'block'
+        })
+        targets.appendChild(row)
+      }
+    </script>
+  </body>
+</html>

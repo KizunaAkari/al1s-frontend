@@ -1,0 +1,23 @@
+.deployment-upload-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0 12px;
+}
+
+.deployment-upload-row span {
+  color: var(--el-text-color-secondary, #8698aa);
+  font-size: 12px;
+}
+
+.deployment-artifacts {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  margin-top: 12px;
+}
+
+.deployment-artifacts .el-radio {
+  width: 100%;
+  margin-right: 0;
+}
