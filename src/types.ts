@@ -3,6 +3,9 @@ export interface DeviceState {
   serial?: string
   model?: string
   android_version?: string
+  screen_width?: number | null
+  screen_height?: number | null
+  screen_size?: string
   battery_level?: number | null
   battery_status?: string | null
   screen_on?: boolean | null
@@ -81,6 +84,24 @@ export interface Task {
 
 export type ScriptType = 'standard' | 'module_start' | 'module_process' | 'invalid'
 
+export interface ScriptCompatibilityWarning {
+  code: string
+  message: string
+}
+
+export interface ScriptCompatibility {
+  status: 'compatible' | 'warning' | 'unknown'
+  summary: string
+  warnings: ScriptCompatibilityWarning[]
+  device?: {
+    serial?: string
+    model?: string
+    android_version?: string
+    screen_width?: number | null
+    screen_height?: number | null
+  }
+}
+
 export interface SavedScript {
   name: string
   content: string
@@ -93,6 +114,7 @@ export interface SavedScript {
   source_activity?: string | null
   valid?: boolean
   validation_error?: string
+  compatibility?: ScriptCompatibility
 }
 
 export interface ScriptCategory {

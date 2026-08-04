@@ -112,6 +112,13 @@ applyTheme(theme.value)
 const standardTaskScripts = computed(() => taskScripts.value.filter((item) => item.valid !== false && item.script_type === 'standard'))
 const startModuleScripts = computed(() => taskScripts.value.filter((item) => item.valid !== false && item.script_type === 'module_start'))
 const processModuleScripts = computed(() => taskScripts.value.filter((item) => item.valid !== false && item.script_type === 'module_process'))
+const taskCompatibilityWarnings = computed(() => {
+  const selectedNames = new Set([
+    ...taskForm.value.script_names,
+    ...taskForm.value.composition_modules.map((item) => item.script_name),
+  ])
+  return taskScripts.value.filter((item) => selectedNames.has(item.name) && item.compatibility?.status === 'warning')
+})
 const selectedCompositionStart = computed(() => taskScripts.value.find((item) => item.name === taskForm.value.composition_modules[0]?.script_name))
 const compositionCategoryPackage = computed(() => selectedCompositionStart.value?.category_package || '')
 const compositionCategoryLabel = computed(() => selectedCompositionStart.value?.category_name || compositionCategoryPackage.value)
@@ -1092,9 +1099,21 @@ onBeforeUnmount(() => timer && window.clearInterval(timer))
         <label>任务名称<el-input v-model="taskForm.name" maxlength="120" /></label>
         <label v-if="taskForm.dispatch_kind === 'standard'">执行普通脚本（可多选，按选择顺序进入队列）
           <el-select class="task-script-select" v-model="taskForm.script_names" multiple collapse-tags :max-collapse-tags="3" placeholder="从脚本编辑器保存的普通脚本中选择">
-            <el-option v-for="item in standardTaskScripts" :key="item.name" :label="displayScriptName(item.name)" :value="item.name" />
+            <el-option
+              v-for="item in standardTaskScripts"
+              :key="item.name"
+              :label="`${displayScriptName(item.name)}${item.compatibility?.status === 'warning' ? ' ⚠' : ''}`"
+              :value="item.name"
+            />
           </el-select>
         </label>
+        <el-alert
+          v-if="taskCompatibilityWarnings.length"
+          :title="`已选脚本中有 ${taskCompatibilityWarnings.length} 个存在静态兼容性提示，仍可继续下发。`"
+          type="warning"
+          :closable="false"
+          show-icon
+        />
         <el-alert
           v-if="taskForm.dispatch_kind === 'standard' && !standardTaskScripts.length"
           title="当前终端没有可下发的普通脚本，请先到脚本编辑器创建并保存"

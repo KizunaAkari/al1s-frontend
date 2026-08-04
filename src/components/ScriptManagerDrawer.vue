@@ -49,6 +49,17 @@ const filteredScripts = computed(() => props.scripts.filter((script) => (
   (script.category_package || '') === selectedCategory.value
 )))
 
+const compatibilityWarnings = computed(() => props.scripts.filter((script) => (
+  script.compatibility?.status === 'warning'
+)).length)
+
+function compatibilityLabel(script: SavedScript) {
+  const compatibility = script.compatibility
+  if (!compatibility || compatibility.status === 'compatible') return ''
+  if (compatibility.status === 'unknown') return '无法判断'
+  return `${compatibility.warnings.length} 个静态提示`
+}
+
 function categoryLabel(packageName?: string | null) {
   if (!packageName) return '未分类'
   const category = props.categories.find((item) => item.package_name === packageName)
@@ -241,6 +252,13 @@ watch(() => props.modelValue, (open) => {
         </header>
 
         <template v-if="activeTab === 'scripts'">
+          <el-alert
+            v-if="compatibilityWarnings"
+            :title="`当前设备有 ${compatibilityWarnings} 个脚本存在静态兼容性提示；这些提示不会阻止使用。`"
+            type="warning"
+            :closable="false"
+            show-icon
+          />
           <section v-if="selectedCategory" class="alias-editor">
             <div>
               <strong>分类显示名称</strong>
@@ -283,6 +301,13 @@ watch(() => props.modelValue, (open) => {
               <div class="script-identity">
                 <strong>{{ displayScriptName(script.name) }}</strong>
                 <small>{{ scriptOptionLabel(script) }}</small>
+                <el-tag
+                  v-if="script.compatibility && script.compatibility.status !== 'compatible'"
+                  :type="script.compatibility.status === 'warning' ? 'warning' : 'info'"
+                  size="small"
+                  effect="plain"
+                  :title="script.compatibility.warnings.map((warning) => warning.message).join('\n')"
+                >{{ compatibilityLabel(script) }}</el-tag>
                 <code v-if="script.source_package">
                   来源：{{ script.source_package }}<template v-if="script.source_activity">/{{ script.source_activity }}</template>
                 </code>
