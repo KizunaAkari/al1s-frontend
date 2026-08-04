@@ -9,7 +9,9 @@ export type EditorScriptType = Exclude<ScriptType, 'invalid'>
 
 export interface SkipCondition {
   enabled: boolean
-  skip_remaining_steps?: boolean
+  /** Editor-only id of the later event to jump to. Serialized as a 1-based index. */
+  skip_to_step_id?: string
+  skip_to_step_index?: number
   mode?: 'numeric' | 'image'
   operator: 'gt' | 'lt'
   value: number
@@ -196,11 +198,14 @@ export function migratedFailureRetry(value: unknown): FailureRetry | undefined {
 
 export function migratedSkipCondition(value: unknown): SkipCondition | undefined {
   if (!value || typeof value !== 'object') return undefined
-  const condition = value as Partial<SkipCondition>
+  const condition = value as Partial<SkipCondition> & { skip_remaining_steps?: unknown }
+  const { skip_remaining_steps: _legacySkipRemaining, ...rest } = condition
+  const target = Number(condition.skip_to_step_index)
   return {
-    ...condition,
+    ...rest,
     enabled: condition.enabled === true,
-    skip_remaining_steps: condition.skip_remaining_steps === true,
+    skip_to_step_id: '',
+    ...(Number.isInteger(target) && target > 0 ? { skip_to_step_index: target } : {}),
     mode: condition.mode === 'image' ? 'image' : 'numeric',
     operator: condition.operator === 'lt' ? 'lt' : 'gt',
     value: Number(condition.value ?? 0),
@@ -256,7 +261,7 @@ function stepSummary(step: EditorStep) {
 
 export function displayStepSummary(step: EditorStep) {
   const condition = step.skip_condition
-  const skipScope = condition?.skip_remaining_steps ? '并跳过后续事件' : '跳过当前事件'
+  const skipScope = condition?.skip_to_step_id ? '跳转到指定后续事件' : '跳过当前事件'
   const guard = condition?.enabled
     ? condition.mode === 'image'
       ? `IF 图片相似度达到 ${condition.threshold ?? 0.85} 时${skipScope}`

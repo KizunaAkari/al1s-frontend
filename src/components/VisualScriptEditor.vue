@@ -103,6 +103,12 @@ const steps = ref<EditorStep[]>([startStep()])
 const lockedAgent = computed(() => props.agents.find((agent) => agent.id === lockedAgentId.value))
 const selectedGlobalPopup = computed(() => globalPopups.value.find((rule) => rule.id === selectedGlobalPopupId.value))
 const selectedStep = computed(() => selectedGlobalPopupId.value ? undefined : steps.value[selectedStepIndex.value])
+const followingSkipSteps = computed(() => {
+  if (!selectedStep.value) return []
+  return steps.value
+    .map((step, index) => ({ step, index }))
+    .filter(({ index }) => index > selectedStepIndex.value)
+})
 const activeAnnotationTarget = computed(() => selectedGlobalPopup.value || selectedStep.value)
 const automationBusy = computed(() => Boolean(previewRunningId.value) || quickTesting.value)
 const targetLabel = computed(() => {
@@ -1049,6 +1055,13 @@ function validateClickTarget(target: EditorStep | GlobalPopupRule, prefix: strin
 function validateSkipCondition(step: EditorStep, prefix: string) {
   const condition = step.skip_condition
   if (!condition?.enabled) return
+  if (condition.skip_to_step_id) {
+    const sourceIndex = steps.value.findIndex((candidate) => candidate.id === step.id)
+    const targetIndex = steps.value.findIndex((candidate) => candidate.id === condition.skip_to_step_id)
+    if (sourceIndex < 0 || targetIndex <= sourceIndex) {
+      throw new Error(`${prefix}的条件跳转目标必须是当前事件之后的事件`)
+    }
+  }
   if (condition.mode === 'image') {
     if (!condition.preview_base64) throw new Error(`${prefix}开启了图片条件跳过，但没有截取匹配图片`)
     const threshold = Number(condition.threshold)
@@ -1347,7 +1360,24 @@ function scriptContent() {
         step_ids.includes(step.id) ? [index + 1] : []
       )),
     })),
-    steps: steps.value.map(({ id: _id, ...step }) => step),
+    steps: steps.value.map(({ id: _id, skip_condition, ...step }) => {
+      if (!skip_condition) return step
+      const {
+        skip_to_step_id: _targetId,
+        skip_to_step_index: _legacyTargetIndex,
+        ...condition
+      } = skip_condition
+      const targetIndex = _targetId
+        ? steps.value.findIndex((candidate) => candidate.id === _targetId) + 1
+        : 0
+      return {
+        ...step,
+        skip_condition: {
+          ...condition,
+          ...(targetIndex > 0 ? { skip_to_step_index: targetIndex } : {}),
+        },
+      }
+    }),
   }, null, 2)
 }
 
@@ -1478,6 +1508,19 @@ async function loadSelectedScript() {
         force_stop_before_launch: step.force_stop_before_launch !== false,
       } : {}),
     } as EditorStep))
+    loaded.forEach((step, index) => {
+      const target = Number(step.skip_condition?.skip_to_step_index)
+      if (
+        step.skip_condition
+        && Number.isInteger(target)
+        && target > index + 1
+        && target <= loaded.length
+      ) {
+        step.skip_condition.skip_to_step_id = loaded[target - 1].id
+      } else if (step.skip_condition) {
+        step.skip_condition.skip_to_step_id = ''
+      }
+    })
     if (loadedScriptType === 'module_process') {
       if (loaded.some((step) => ['start', 'launch_app'].includes(step.action))) {
         throw new Error('过程脚本包含了不允许的【开始】或【打开应用】步骤')
@@ -1906,7 +1949,7 @@ onBeforeUnmount(() => {
 
             <section v-if="selectedStep.action !== 'start'" :class="['conditional-skip-card', { enabled: selectedStep.skip_condition?.enabled }]">
               <div class="conditional-skip-head">
-                <div><strong>开启条件跳过</strong><small>满足条件时跳过当前事件，可选是否连同后续所有事件一起跳过</small></div>
+                <div><strong>开启条件跳过</strong><small>满足条件时跳过当前事件，可选跳转到指定的后续事件</small></div>
                 <el-checkbox
                   :model-value="selectedStep.skip_condition?.enabled === true"
                   @change="toggleSkipCondition"
@@ -1924,11 +1967,21 @@ onBeforeUnmount(() => {
                     <el-radio-button value="image">图片匹配</el-radio-button>
                   </el-radio-group>
                 </div>
-                <label class="condition-following-toggle">
-                  <el-checkbox v-model="selectedStep.skip_condition.skip_remaining_steps">
-                    条件满足时同时跳过后续所有事件
-                  </el-checkbox>
-                </label>
+                <label>跳过到指定事件（可选）</label>
+                <el-select
+                  v-model="selectedStep.skip_condition.skip_to_step_id"
+                  clearable
+                  placeholder="不选择：只跳过当前事件"
+                  style="width: 100%"
+                >
+                  <el-option
+                    v-for="item in followingSkipSteps"
+                    :key="item.step.id"
+                    :label="`${stepTag(item.index)} · ${labelFor(item.step.action)}`"
+                    :value="item.step.id"
+                  />
+                </el-select>
+                <p v-if="!followingSkipSteps.length">请先在当前事件后添加事件，才能选择跳转目标。</p>
                 <label>{{ selectedStep.skip_condition.mode === 'image' ? '匹配图片模板' : '数字识别区域' }}</label>
                 <div class="template-box ocr-region-box">
                   <img
@@ -1970,8 +2023,8 @@ onBeforeUnmount(() => {
                   >{{ selectedStep.skip_condition.mode === 'image' ? '测试当前画面的图片匹配条件' : '测试当前画面的 OCR 条件' }}</el-button>
                   <span v-if="conditionTestResult" :class="conditionTestResult.tone">{{ conditionTestResult.message }}</span>
                 </div>
-                <p v-if="selectedStep.skip_condition.mode === 'image'">拖框截图作为 MaaFramework 模板图片，匹配成功时跳过当前事件；勾选后会一并跳过后续所有步骤。</p>
-                <p v-else>OCR 会读取选区中的第一个数字并与目标值比较。没有识别到有效数字时不会跳过；勾选后，命中条件会一并跳过后续所有步骤。</p>
+                <p v-if="selectedStep.skip_condition.mode === 'image'">拖框截图作为 MaaFramework 模板图片，匹配成功时跳过当前事件；选择目标后会跳过中间事件并继续执行目标事件。</p>
+                <p v-else>OCR 会读取选区中的第一个数字并与目标值比较。没有识别到有效数字时不会跳过；选择目标后，命中条件会跳过中间事件并继续执行目标事件。</p>
               </div>
             </section>
 
