@@ -9,6 +9,7 @@ export type EditorScriptType = Exclude<ScriptType, 'invalid'>
 
 export interface SkipCondition {
   enabled: boolean
+  skip_remaining_steps?: boolean
   mode?: 'numeric' | 'image'
   operator: 'gt' | 'lt'
   value: number
@@ -199,6 +200,7 @@ export function migratedSkipCondition(value: unknown): SkipCondition | undefined
   return {
     ...condition,
     enabled: condition.enabled === true,
+    skip_remaining_steps: condition.skip_remaining_steps === true,
     mode: condition.mode === 'image' ? 'image' : 'numeric',
     operator: condition.operator === 'lt' ? 'lt' : 'gt',
     value: Number(condition.value ?? 0),
@@ -254,11 +256,12 @@ function stepSummary(step: EditorStep) {
 
 export function displayStepSummary(step: EditorStep) {
   const condition = step.skip_condition
+  const skipScope = condition?.skip_remaining_steps ? '并跳过后续事件' : '跳过当前事件'
   const guard = condition?.enabled
     ? condition.mode === 'image'
-      ? `IF 图片相似度达到 ${condition.threshold ?? 0.85} 时跳过`
+      ? `IF 图片相似度达到 ${condition.threshold ?? 0.85} 时${skipScope}`
       : condition.region
-        ? `IF 数值${condition.operator === 'gt' ? '大于' : '小于'} ${condition.value} 时跳过`
+        ? `IF 数值${condition.operator === 'gt' ? '大于' : '小于'} ${condition.value} 时${skipScope}`
         : ''
     : ''
   const assertion = step.post_assertion?.enabled

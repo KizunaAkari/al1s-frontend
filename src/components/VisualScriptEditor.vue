@@ -1906,7 +1906,7 @@ onBeforeUnmount(() => {
 
             <section v-if="selectedStep.action !== 'start'" :class="['conditional-skip-card', { enabled: selectedStep.skip_condition?.enabled }]">
               <div class="conditional-skip-head">
-                <div><strong>开启条件跳过</strong><small>满足数字比较或图片匹配条件时跳过当前事件，继续下一步</small></div>
+                <div><strong>开启条件跳过</strong><small>满足条件时跳过当前事件，可选是否连同后续所有事件一起跳过</small></div>
                 <el-checkbox
                   :model-value="selectedStep.skip_condition?.enabled === true"
                   @change="toggleSkipCondition"
@@ -1924,6 +1924,11 @@ onBeforeUnmount(() => {
                     <el-radio-button value="image">图片匹配</el-radio-button>
                   </el-radio-group>
                 </div>
+                <label class="condition-following-toggle">
+                  <el-checkbox v-model="selectedStep.skip_condition.skip_remaining_steps">
+                    条件满足时同时跳过后续所有事件
+                  </el-checkbox>
+                </label>
                 <label>{{ selectedStep.skip_condition.mode === 'image' ? '匹配图片模板' : '数字识别区域' }}</label>
                 <div class="template-box ocr-region-box">
                   <img
@@ -1965,8 +1970,8 @@ onBeforeUnmount(() => {
                   >{{ selectedStep.skip_condition.mode === 'image' ? '测试当前画面的图片匹配条件' : '测试当前画面的 OCR 条件' }}</el-button>
                   <span v-if="conditionTestResult" :class="conditionTestResult.tone">{{ conditionTestResult.message }}</span>
                 </div>
-                <p v-if="selectedStep.skip_condition.mode === 'image'">拖框截图作为 MaaFramework 模板图片，在手机画面中达到设定相似度时跳过当前事件；未匹配时继续执行。</p>
-                <p v-else>OCR 会读取选区中的第一个数字并与目标值比较。没有识别到有效数字时不会跳过，而会继续执行当前事件。</p>
+                <p v-if="selectedStep.skip_condition.mode === 'image'">拖框截图作为 MaaFramework 模板图片，匹配成功时跳过当前事件；勾选后会一并跳过后续所有步骤。</p>
+                <p v-else>OCR 会读取选区中的第一个数字并与目标值比较。没有识别到有效数字时不会跳过；勾选后，命中条件会一并跳过后续所有步骤。</p>
               </div>
             </section>
 
