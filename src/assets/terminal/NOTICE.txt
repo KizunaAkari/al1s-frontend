@@ -1,0 +1,5 @@
+Linux and Android SVGs: Simple Icons, https://github.com/simple-icons/simple-icons
+Retrieved 2026-09-22 from develop/icons/linux.svg and develop/icons/android.svg.
+Upstream artwork license: CC0-1.0, https://creativecommons.org/publicdomain/zero/1.0/
+Source license: https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md
+Trademark rights are not granted by CC0; icons identify device operating systems only.
