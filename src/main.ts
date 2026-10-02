@@ -1,9 +1,11 @@
-import { createApp } from 'vue'
-import ElementPlus from 'element-plus'
 import 'element-plus/dist/index.css'
-import './style.css'
-import './failure.css'
-import './theme.css'
-import App from './App.vue'
+import 'element-plus/theme-chalk/dark/css-vars.css'
+import './app/styles.css'
 
-createApp(App).use(ElementPlus).mount('#app')
+import { createPinia } from 'pinia'
+import { createApp } from 'vue'
+
+import App from './app/App.vue'
+import { router } from './app/router'
+
+createApp(App).use(createPinia()).use(router).mount('#app')

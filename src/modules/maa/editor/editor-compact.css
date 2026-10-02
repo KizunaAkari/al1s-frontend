@@ -1,0 +1,40 @@
+.config-heading { min-height:48px; gap:12px; padding:0 16px; }
+.config-heading strong { font-size:15px; }
+.config-columns { grid-template-columns:240px minmax(280px,1fr) minmax(340px,400px); }
+.config-steps { padding:14px 12px; }
+.config-form-scroll { padding:12px; container-type:inline-size; }
+.step-form { gap:10px; }
+.config-form-scroll :deep(.step-form > section) { padding:12px; border-radius:9px; }
+.config-form-scroll :deep(.action-form),.config-form-scroll :deep(.wait-form),.config-form-scroll :deep(.recognize-form) { gap:10px; }
+.config-form-scroll :deep(h3) { font-size:14px; margin-block:0; }
+.config-form-scroll :deep(label) { font-size:12px; font-weight:500; gap:4px; }
+.config-form-scroll :deep(label:has(> .el-switch)) { display:flex; align-items:center; justify-content:space-between; }
+.config-form-scroll :deep(.pair),.config-form-scroll :deep(.field-grid),.config-form-scroll :deep(.assertion-fields) {
+  display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px 12px;
+}
+.config-form-scroll :deep(.pair > .region-field),.config-form-scroll :deep(.field-grid > .region-field),
+.config-form-scroll :deep(.field-grid > .point-picker) { grid-column:1/-1; }
+.config-form-scroll :deep(.el-input-number) { width:100%; max-width:160px; --el-component-size:30px; }
+.config-form-scroll :deep(.el-input-number__decrease),.config-form-scroll :deep(.el-input-number__increase) { width:26px; }
+.config-form-scroll :deep(.el-input-number .el-input__wrapper) { padding-inline:28px; }
+.config-form-scroll :deep(.el-select),.config-form-scroll :deep(.el-input) { --el-component-size:30px; }
+.config-form-scroll :deep(.el-button) { height:28px; padding:5px 10px; font-size:12px; }
+.config-form-scroll :deep(.el-button + .el-button) { margin-left:0; }
+.config-form-scroll :deep(.region-buttons),.config-form-scroll :deep(.point-picker) { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.config-form-scroll :deep(.region-field) { padding:10px; gap:8px; }
+.config-form-scroll :deep(.setting-group + .setting-group) { padding-top:10px; }
+.config-form-scroll :deep(.image-branches .heading) { flex-wrap:wrap; align-items:flex-start; }
+.config-form-scroll :deep(.image-branches .heading h3) { flex:none; }
+.config-form-scroll :deep(.image-branches .heading p) { flex:1 1 220px; }
+.config-form-scroll :deep(p) { margin-block:4px; }
+.config-actions { padding:8px 12px; gap:8px; flex-wrap:wrap; }
+.media-tabs,.config-tabs { padding:4px 8px 0; gap:0; }
+.media-tabs button,.config-tabs button { padding:9px 10px; font-size:13px; }
+@media (max-width:1100px) { .config-columns { grid-template-columns:200px minmax(250px,1fr) minmax(320px,1fr); } }
+@media (max-width:850px) {
+  .config-columns { display:block; }
+  .config-debug-host { height:65dvh; min-height:380px; flex:none; }
+}
+@container (max-width:260px) {
+  .config-form-scroll :deep(.pair),.config-form-scroll :deep(.field-grid),.config-form-scroll :deep(.assertion-fields) { grid-template-columns:1fr; }
+}
