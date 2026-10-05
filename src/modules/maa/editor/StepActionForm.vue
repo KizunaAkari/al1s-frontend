@@ -4,6 +4,8 @@ import StepPointPicker from './StepPointPicker.vue'
 import StepRegionField from './StepRegionField.vue'
 import StepPostWaitField from './StepPostWaitField.vue'
 import StepSystemKeyWaitFields from './StepSystemKeyWaitFields.vue'
+import ColorMarkerSummary from './ColorMarkerSummary.vue'
+import { colorMarkerRecognition } from './recognition-display'
 import { computed } from 'vue'
 import { ElAlert, ElInput, ElInputNumber, ElOption, ElSelect, ElSwitch } from 'element-plus'
 import type { WorkflowStep } from '../../../shared/api/maa-script-editor'
@@ -24,6 +26,7 @@ const props = defineProps<{ step: WorkflowStep }>()
 const emit = defineEmits<{ change: [step: WorkflowStep] }>()
 const isTextAction = computed(() => ['wait_text', 'click_text'].includes(props.step.action))
 const recognition = computed(() => ['wait_image', 'wait_click', 'smart_swipe'].includes(props.step.action))
+const marker = computed(() => colorMarkerRecognition(props.step))
 const textValue = computed(() => typeof props.step.text === 'string' ? props.step.text : '')
 const searchRegion = computed(() => {
   const value = props.step.search_region
@@ -155,10 +158,11 @@ function updateSearchRegion(key: OcrRegionKey, value: number | null | undefined)
       <StepPostWaitField :step="step" @change="value => emit('change', value)" />
     </template>
     <template v-else-if="recognition">
-      <StepRegionField use="template" title="识别图片" :bound="step.template_base64" />
+      <ColorMarkerSummary v-if="marker" :step="step" />
+      <StepRegionField v-else use="template" title="识别图片" :bound="step.template_base64" />
       <div class="setting-group">
         <div class="field-grid">
-          <label>图片匹配阈值<ElInputNumber :model-value="number('threshold') ?? 0.85" :min="0.000001" :max="1" :step="0.01"
+          <label v-if="!marker">图片匹配阈值<ElInputNumber :model-value="number('threshold') ?? 0.85" :min="0.000001" :max="1" :step="0.01"
             aria-label="图片匹配阈值" @change="v => update('threshold', v)" /></label>
           <label>识别间隔（秒）<ElInputNumber :model-value="number('poll_interval_seconds')" :min="0.05" :max="10" :step="0.05"
             aria-label="识别间隔" @change="v => update('poll_interval_seconds', v)" /></label>
@@ -167,7 +171,11 @@ function updateSearchRegion(key: OcrRegionKey, value: number | null | undefined)
           <StepPostWaitField :step="step" @change="value => emit('change', value)" />
         </div>
       </div>
-      <template v-if="step.action === 'wait_click'">
+      <label v-if="marker">点击后等待（秒）
+        <ElInputNumber :model-value="number('wait_after_click_seconds')" :min="0" :max="300"
+          aria-label="点击后等待秒数" @change="value => update('wait_after_click_seconds', value)" />
+      </label>
+      <template v-else-if="step.action === 'wait_click'">
         <div class="setting-group"><h3>点击设置 <HelpHint subject="点击设置">连击受步骤剩余时间限制；独立规则处理期间暂停该步骤计时，遇到失败或取消停止。</HelpHint></h3><div class="field-grid">
         <label class="wide-field"><span>点击模式 <HelpHint v-if="legacyClickMode" subject="点击模式">当前点击模式 {{ clickMode }} 保留原配置；本表单不覆盖其专用参数。</HelpHint></span>
           <ElSelect :model-value="clickMode" aria-label="点击模式" @change="updateClickMode">

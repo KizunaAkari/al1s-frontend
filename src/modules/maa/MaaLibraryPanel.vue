@@ -141,7 +141,7 @@ async function persistScriptMove(
   sourceId: string, targetId: string, placement: 'before' | 'after',
 ): Promise<void> {
   const applicationId = selectedApplicationId.value
-  if (!sourceId || sourceId === targetId || !applicationId || orderBusy.value) return
+  if (!sourceId || !targetId || sourceId === targetId || !applicationId || orderBusy.value) return
   const loadedCount = scripts.items.value.length
   orderError.value = ''
   orderBusy.value = true

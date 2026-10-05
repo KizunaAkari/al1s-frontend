@@ -58,9 +58,15 @@ it('displays existing match_offset and color_marker modes without replacing them
     const step = { action: 'wait_click', click_mode: mode, mode_specific: { keep: true } }
     const wrapper = mount(StepActionForm, { props: { step } })
     try {
-      expect(wrapper.findComponent(ElSelect).props('modelValue')).toBe(mode)
-      expect(await helpText(wrapper, '点击模式')).toContain(mode)
+      if (mode === 'color_marker') {
+        expect(wrapper.text()).toContain('颜色标记循环')
+        expect(wrapper.findComponent(ElSelect).exists()).toBe(false)
+      } else {
+        expect(wrapper.findComponent(ElSelect).props('modelValue')).toBe(mode)
+        expect(await helpText(wrapper, '点击模式')).toContain(mode)
+      }
       expect(wrapper.emitted('change')).toBeUndefined()
+      expect(step).toEqual({ action: 'wait_click', click_mode: mode, mode_specific: { keep: true } })
     } finally { wrapper.unmount() }
   }
 })

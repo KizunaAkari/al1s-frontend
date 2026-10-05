@@ -5,7 +5,7 @@ import { ElButton } from 'element-plus'
 import type { WorkflowStep } from '../../../shared/api/maa-script-editor'
 import { defaultNodeLayout } from './canvas-layout'
 import WorkflowRecognitionPreview from './WorkflowRecognitionPreview.vue'
-import { recognitionActions, textRecognition } from './recognition-display'
+import { colorMarkerRecognition, recognitionActions, recognitionTitle, textRecognition } from './recognition-display'
 import WorkflowMiniMap from './WorkflowMiniMap.vue'
 import { useCanvasPointer } from './use-canvas-pointer'
 import { isConfigurableWorkflowAction } from './workflow-structure'
@@ -300,7 +300,7 @@ defineExpose({ zoom, positions, fit, focusNode })
     @pointerup="cancelHold();drag=undefined" @pointercancel="drag=undefined"
     @click="emit('select',node.i)" tabindex="0" @contextmenu="context($event,node.i)"
     @keydown.enter.self.prevent="details(node.i)" @dblclick="details(node.i)">
-    <button class="node-title" data-node-drag-handle @click="emit('select',node.i)">{{ String(node.i+1).padStart(2, '0') }} · {{ node.s.name || node.s.title || names[node.s.action] || node.s.action }}</button>
+    <button class="node-title" data-node-drag-handle @click="emit('select',node.i)">{{ String(node.i+1).padStart(2, '0') }} · {{ recognitionTitle(node.s, names[node.s.action] || node.s.action) }}</button>
     <small v-if="activeStep===node.i+1" class="node-running">执行中</small>
     <div v-if="node.s.action !== 'start'" class="inline-fields" @dblclick.stop @keydown.stop>
      <label v-if="node.s.action==='wait'">秒 <input type="number" min="0" :value="node.s.seconds" :disabled="disabled" aria-label="等待秒数" @change="inline(node.i,'seconds',$event,true)" /></label>
@@ -314,7 +314,7 @@ defineExpose({ zoom, positions, fit, focusNode })
      <template v-if="imageAction(node.s.action)">
       <button type="button" class="node-image-action" @click="details(node.i)"><WorkflowRecognitionPreview
         :step="node.s" :script-id="scriptId" :version-id="versionId" :show-text="!['wait_text','click_text'].includes(node.s.action)" /></button>
-      <label v-if="!textRecognition(node.s)">图片阈值 <input type="number" min="0.000001" max="1" step="0.01" :value="node.s.threshold ?? 0.85" :disabled="disabled" aria-label="图片匹配阈值" @change="inline(node.i,'threshold',$event,true)" /></label>
+      <label v-if="!textRecognition(node.s) && !colorMarkerRecognition(node.s)">图片阈值 <input type="number" min="0.000001" max="1" step="0.01" :value="node.s.threshold ?? 0.85" :disabled="disabled" aria-label="图片匹配阈值" @change="inline(node.i,'threshold',$event,true)" /></label>
      </template>
      <label v-if="imageAction(node.s.action) || ['wait_text','click_text'].includes(node.s.action)">识别间隔
       <input type="number" min="0.05" max="10" step="0.05" :value="node.s.poll_interval_seconds ?? 1"
