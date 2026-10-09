@@ -5,10 +5,11 @@ import { ElButton, ElDrawer, ElEmpty, ElTable, ElTableColumn } from 'element-plu
 import BotConfiguration from './BotConfiguration.vue'
 import BotContainers from './BotContainers.vue'
 import BotBrandIcon from '../../shared/components/BotBrandIcon.vue'
+import MemeWorkshop from './memes/MemeWorkshop.vue'
 import { apiClient } from '../../shared/api/client'
 import { fetchBotApplications, fetchBotServices, type BotApplication, type BotService } from '../../shared/api/bots'
 
-type Tab = 'qq' | 'discord'
+type Tab = 'qq' | 'discord' | 'memes'
 const tab = ref<Tab>('qq')
 const selectedServiceId = ref<string | null>(null)
 const services = ref<BotService[]>([])
@@ -97,7 +98,10 @@ onBeforeUnmount(() => { requestNo++; detailNo++ })
     <div class="bot-tabs" role="tablist" aria-label="Bot 类型">
       <button type="button" role="tab" :aria-selected="tab === 'qq'" :class="{ active: tab === 'qq' }" @click="tab = 'qq'"><BotBrandIcon kind="qq" />QQ Bot</button>
       <button type="button" role="tab" :aria-selected="tab === 'discord'" :class="{ active: tab === 'discord' }" @click="tab = 'discord'"><BotBrandIcon kind="discord" />Discord Bot</button>
+      <button type="button" role="tab" :aria-selected="tab === 'memes'" :class="{ active: tab === 'memes' }" @click="tab = 'memes'">表情包工坊</button>
     </div>
+    <MemeWorkshop v-if="tab === 'memes'" />
+    <template v-else>
     <div class="bot-section-heading"><div><h2>{{ tab === 'qq' ? 'QQ Bot' : 'Discord Bot' }}</h2><span class="bot-pill">{{ tab === 'qq' ? 'LLOneBot' : 'Discord Worker' }}</span></div><el-button text :loading="busy" @click="load()">⟳ 刷新</el-button></div>
     <p v-if="error" class="bot-inline-error">{{ error }}</p>
     <div class="bot-card-grid">
@@ -149,6 +153,7 @@ onBeforeUnmount(() => { requestNo++; detailNo++ })
       </el-table>
       <el-button v-if="applicationCursor && selected" :disabled="detailBusy" @click="open(selected, true)">加载更多记录</el-button>
     </el-drawer>
+    </template>
   </section>
 </template>
 

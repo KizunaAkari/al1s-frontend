@@ -7,6 +7,7 @@ import { connectPhoneControl, keyPacket, touchPacket } from './control-connectio
 import { Back, House } from '@element-plus/icons-vue'
 import { ApiError } from '../../../shared/api/client'
 import { videoPoint } from './video-coordinates'
+import { ControlConfirmation, isTransientConfirmationFailure } from './control-confirmation'
 
 const props = defineProps<{ deviceId: string }>()
 const emit = defineEmits<{ geometry:[width:number,height:number]; screenshotUrl:[url:string|undefined] }>()
@@ -49,6 +50,12 @@ let videoEpoch = 0
 let pollEpoch = 0
 let controlEpoch = 0
 let restartRequested = false
+let polling = false
+const confirmation = new ControlConfirmation(() => {
+  platformReady.value = false
+  stopControl()
+  if (!disposed && !closing.value) error.value = '无法核对平台会话状态超过10秒；视频可继续，人工操作已暂停。'
+})
 
 function stopLocal(): void {
   ++videoEpoch
@@ -75,18 +82,32 @@ function stopControl(): void {
 
 function enableControl(): void {
   const connection = session.value?.connection
-  if (!connection || disposed || closing.value || !platformReady.value || control || Date.now()<controlRetryAt || !watching.value || !frameSize.value.width) return
+  if (!connection || disposed || closing.value || !platformReady.value || !confirmation.valid() || control || Date.now()<controlRetryAt || !watching.value || !frameSize.value.width) return
   const epoch = ++controlEpoch
   try {
     control = connectPhoneControl(connection.control_ws_url,
-      () => { if(epoch === controlEpoch && !disposed && platformReady.value && !closing.value) controlling.value = true },
-      () => { if (epoch !== controlEpoch) return; controlling.value = false; pointer = undefined; lastTouchPoint = undefined; control=undefined; controlRetryAt=Date.now()+5000 })
+      () => { if(epoch === controlEpoch && !disposed && platformReady.value && confirmation.valid() && !closing.value) controlling.value = true },
+      () => {
+        if (epoch !== controlEpoch) return
+        controlling.value = false; pointer = undefined; lastTouchPoint = undefined
+        control = undefined; controlRetryAt = Date.now() + 5000
+        if (connection.transport === 'android-reverse-v1') {
+          // Automation revokes the Android media attachment. A fresh video/control
+          // pair restores input; reconnecting control to the old media cannot.
+          stopLocal()
+          videoFailed.value = true
+          retryTimer = setTimeout(() => {
+            videoFailed.value = false
+            void poll()
+          }, 5000)
+        }
+      })
   } catch { control=undefined; controlRetryAt=Date.now()+5000 }
 }
 
 function touch(event: PointerEvent, action: 0 | 1 | 2): void {
   const target=canvas.value, size=frameSize.value
-  if (!target || !watching.value || !controlling.value || !size.width || target.width!==size.width || target.height!==size.height) return
+  if (!target || !watching.value || !controlling.value || !confirmation.valid() || !size.width || target.width!==size.width || target.height!==size.height) return
   if (action === 0 && event.button !== 0) return
   const point=videoPoint(event.clientX,event.clientY,target.getBoundingClientRect(),size)
   if (action === 0) {
@@ -108,7 +129,7 @@ function touch(event: PointerEvent, action: 0 | 1 | 2): void {
 }
 
 function pressKey(key: 3 | 4): void {
-  if (!controlling.value || !frameSize.value.width) return
+  if (!controlling.value || !confirmation.valid() || !frameSize.value.width) return
   control?.send(keyPacket(0, key))
   control?.send(keyPacket(1, key))
 }
@@ -119,16 +140,19 @@ function schedulePoll(): void {
 }
 
 async function poll(): Promise<void> {
-  if (!session.value || disposed) return
+  if (!session.value || disposed || polling) return
+  polling = true
   const epoch = ++pollEpoch
   const id = session.value.session_id
+  const started = Date.now()
   try {
     const current = await fetchEditorSession(id)
     if (disposed || epoch !== pollEpoch || session.value?.session_id !== id) return
     session.value = current
-    platformReady.value = true
+    platformReady.value = current.status === 'active' && confirmation.confirm(started)
+    if (current.status !== 'active') confirmation.clear()
     emit('screenshotUrl', !closing.value && current.status === 'active' ? current.connection?.screenshot_ws_url : undefined)
-    if(error.value.startsWith('无法核对平台会话状态'))error.value=''
+    if(platformReady.value && (error.value.startsWith('无法核对平台会话状态') || error.value.startsWith('连接波动')))error.value=''
     if (closing.value && ['active', 'pending'].includes(current.status)) {
       session.value = await closeEditorSession(current.session_id)
       schedulePoll()
@@ -146,6 +170,7 @@ async function poll(): Promise<void> {
       clearRequest()
       if (restartRequested) {
         restartRequested = false
+        polling = false
         await open()
       }
       return
@@ -153,12 +178,20 @@ async function poll(): Promise<void> {
     if (current.status === 'closing') stopLocal()
     else enableControl()
     schedulePoll()
-  } catch {
+  } catch (failure) {
     if (disposed || epoch !== pollEpoch) return
-    platformReady.value = false
-    stopControl()
-    error.value = '无法核对平台会话状态；视频可继续，人工操作不可用。'
+    if (isTransientConfirmationFailure(failure) && confirmation.valid()) {
+      error.value = '连接波动，正在重试；已确认的控制暂时保留。'
+    } else {
+      confirmation.clear()
+      platformReady.value = false
+      stopControl()
+      error.value = '无法核对平台会话状态；视频可继续，人工操作不可用。'
+    }
     schedulePoll()
+  } finally {
+    polling = false
+    if (session.value && ['pending', 'active', 'closing'].includes(session.value.status)) schedulePoll()
   }
 }
 
@@ -196,6 +229,8 @@ function startVideo(current: EditorSession): void {
 async function open(): Promise<void> {
   if (busy.value) return
   ++pollEpoch
+  confirmation.clear()
+  platformReady.value = false
   busy.value = true
   error.value = ''
   closing.value = false
@@ -222,6 +257,8 @@ async function open(): Promise<void> {
 
 async function close(preserveError = false): Promise<void> {
   ++pollEpoch
+  confirmation.clear()
+  platformReady.value = false
   restartRequested = false
   closing.value = true
   stopLocal()
@@ -266,6 +303,7 @@ async function reconnectVideo(): Promise<void> {
 onMounted(()=>{void open()})
 onBeforeUnmount(() => {
   disposed = true
+  confirmation.clear()
   stopLocal()
   if (session.value) void closeEditorSession(session.value.session_id).catch(() => undefined)
 })
