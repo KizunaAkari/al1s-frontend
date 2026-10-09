@@ -21,6 +21,7 @@ import StepSmartSwipeForm from './StepSmartSwipeForm.vue'
 import StepAssertionForm from './StepAssertionForm.vue'
 import StepCoordinatesForm from './StepCoordinatesForm.vue'
 import StepImageBindings from './StepImageBindings.vue'
+import ScreenshotImportControls from './ScreenshotImportControls.vue'
 import StepRegionField from './StepRegionField.vue'
 import { regionPreviewsKey, useRegionPreviews } from './use-region-previews'
 import { savedRegion, savedRegionImage } from './region-selection'
@@ -30,6 +31,7 @@ import GlobalPopupRuleForm from './GlobalPopupRuleForm.vue'
 import { globalPopupsEnabled, popupRules, toggleGlobalPopups } from './global-popup-rules'
 import { useEditorScreenshot } from './use-editor-screenshot'
 import WorkflowCanvas from './WorkflowCanvas.vue'
+import { recognitionTitle } from './recognition-display'
 import WorkflowOutline from './WorkflowOutline.vue'
 import { newWorkflowStep } from './workflow-defaults'
 import { insertWorkflowStep, deleteWorkflowStep, isConfigurableWorkflowAction } from './workflow-structure'
@@ -87,17 +89,28 @@ const {
   phoneHidden: hidden => emit('phoneHidden', hidden),
 })
 const {
-  screenshot: activeScreenshot, captureBusy, captureError, discardScreenshot, openScreenshot,
+  screenshot: activeScreenshot, captureBusy, captureError, importedName, discardScreenshot, openScreenshot, importScreenshot,
 } = useEditorScreenshot({
   url: () => props.screenshotUrl, landscape: () => props.screenLandscape,
-  focus: () => `${selected.value}:${selectedGlobal.value}:${selectedPopupRuleIndex.value}`,
+  focus: () => `${props.scriptId}:${props.device?.device_id}:${selected.value}:${selectedGlobal.value}:${selectedPopupRuleIndex.value}`,
   configurable: () => view.value === 'config',
   blocked: () => busy.value || testing.value || uploading.value,
+  screenSize: () => (configDocument.value?.target as { screen_size?: { width: number; height: number } } | undefined)?.screen_size,
   showLive: () => { if (mediaView.value !== 'live') setMedia('live') },
   showScreenshot: () => setMedia('screenshot'),
 })
 const activeRegion = ref<RegionRequest>()
 const regionEditing = ref(false)
+function showScreenshotTab() {
+  if (importedName.value || !props.screenshotUrl) setMedia('screenshot')
+  else void openScreenshot()
+}
+async function importImage(file: File) {
+  if (await importScreenshot(file)) {
+    activeRegion.value = undefined
+    regionEditing.value = false
+  }
+}
 const previewVersion = ref<string>()
 const imageVersion = computed(() => previewVersion.value ?? script.value?.current_version_id ?? undefined)
 watch(() => script.value?.current_version_id, () => { previewVersion.value = undefined }, { flush: 'sync' })
@@ -117,7 +130,7 @@ provide(regionPickerKey, {
   loadPreview: previews.load,
   testOcr: async resource => {
     const path = props.screenshotUrl ? new URL(props.screenshotUrl, location.href).pathname : ''
-    if (!/^\/api\/v1\/editor-sessions\/[^/]+\/channels\/screenshot$/.test(path)) throw new Error('请先连接手机并截图')
+    if (!/^\/api\/v1\/editor-sessions\/[^/]+\/channels\/screenshot$/.test(path)) throw new Error('请先连接手机以测试 OCR')
     const url = await previews.load(resource)
     if (!url) throw new Error('请先选取 OCR 区域')
     const blob = await (await fetch(url)).blob()
@@ -131,7 +144,7 @@ provide(regionPickerKey, {
     if (busy.value || testing.value || uploading.value || captureBusy.value) return
     activeRegion.value = request
     regionEditing.value = true
-    if (fresh || !activeScreenshot.value) void openScreenshot()
+    if ((fresh || !activeScreenshot.value) && !importedName.value) void openScreenshot()
     else setMedia('screenshot')
   },
 })
@@ -146,7 +159,7 @@ const actionNames: Record<string, string> = {
 const configTitle = computed(() => {
   if (selectedGlobal.value) return '00 · 全局规则'
   const item = configStep.value
-  return item ? `${String(selected.value + 1).padStart(2, '0')} · ${String(item.name || item.title || actionNames[item.action] || item.action)}` : '节点配置'
+  return item ? `${String(selected.value + 1).padStart(2, '0')} · ${recognitionTitle(item, actionNames[item.action] || item.action)}` : '节点配置'
 })
 const logOpen = ref(false)
 const validationOpen = ref(false)
@@ -167,7 +180,7 @@ const debugStepTitle = computed(() => {
   if (!matchingDebug.value || !debug.value.step) return ''
   if (debug.value.phase === 'running' && debug.value.completed.includes(debug.value.step)) return ''
   const item = document.value?.steps[debug.value.step - 1]
-  return item ? `${String(debug.value.step).padStart(2, '0')} · ${item.name || item.title || actionNames[item.action] || item.action}` : ''
+  return item ? `${String(debug.value.step).padStart(2, '0')} · ${recognitionTitle(item, actionNames[item.action] || item.action)}` : ''
 })
 function locateDebug(step: number) {
   if (!matchingDebug.value || step < 1 || step > (document.value?.steps.length ?? 0)) return
@@ -502,16 +515,16 @@ onMounted(load)
           <main class="config-media"><div class="media-tabs" role="tablist" aria-label="手机画面模式">
             <button type="button" role="tab" :aria-selected="mediaView === 'live'" :class="{ active: mediaView === 'live' }" @click="setMedia('live')">手机实时画面</button>
             <button type="button" role="tab" :aria-selected="mediaView === 'screenshot'" :class="{ active: mediaView === 'screenshot' }"
-              :disabled="!screenshotUrl || captureBusy || busy || testing || uploading"
-              :title="!screenshotUrl ? '当前手机未提供原始截图通道' : undefined"
-              @click="openScreenshot">{{ captureBusy ? '正在截图…' : '截图标注' }}</button>
+              :disabled="captureBusy || busy || testing || uploading"
+              @click="showScreenshotTab">{{ captureBusy ? '正在读取截图…' : '截图标注' }}</button>
            </div>
           <ElAlert v-if="captureError" :title="captureError" type="warning" :closable="false" />
           <div v-if="mediaView === 'screenshot'" class="media-scroll">
-            <StepImageBindings v-if="configDocument" :script-id="scriptId" :document="configDocument" :index="selected" :screenshot="activeScreenshot" :branch-index="activeRegion?.branchIndex"
+            <ScreenshotImportControls :disabled="captureBusy || busy || testing || uploading" :can-capture="!!screenshotUrl" :screenshot="activeScreenshot" :imported-name="importedName" @import="importImage" @capture="openScreenshot" />
+            <StepImageBindings v-if="configDocument && activeScreenshot" :script-id="scriptId" :document="configDocument" :index="selected" :screenshot="activeScreenshot" :branch-index="activeRegion?.branchIndex"
               :rule-index="selectedGlobal ? selectedPopupRuleIndex : undefined" :mode="selectedGlobal ? 'popup' : configGroup"
               :controls-target="activeRegion?.target" :selected-use="activeRegion?.use" :selection-title="activeRegion?.title" :saved-rect="activeRegion ? selectedRect(activeRegion) : undefined" :show-controls="regionEditing"
-              :disabled="busy || testing" @busy="uploading = $event" @change="changeConfigDocument" @complete="regionEditing = true" @editing="regionEditing = true" @preview="previews.remember" />
+              :disabled="busy || testing || captureBusy" @busy="uploading = $event" @change="changeConfigDocument" @complete="regionEditing = true" @editing="regionEditing = true" @preview="previews.remember" />
           </div>
           <div v-show="mediaView === 'live'" id="editor-config-live-host" class="media-live" aria-label="实时手机控制" />
           </main>

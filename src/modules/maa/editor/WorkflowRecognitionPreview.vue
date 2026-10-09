@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import type { WorkflowStep } from '../../../shared/api/maa-script-editor'
 import CanvasNodeImage from './CanvasNodeImage.vue'
+import ColorMarkerSummary from './ColorMarkerSummary.vue'
 import { recognitionDisplay } from './recognition-display'
 const props = withDefaults(defineProps<{ step: WorkflowStep; scriptId: string; versionId?: string; showText?: boolean }>(), { showText: true })
 const display = computed(() => recognitionDisplay(props.step))
@@ -9,7 +10,8 @@ const display = computed(() => recognitionDisplay(props.step))
 <template>
   <div class="recognition-preview" :class="{ ocr: display.text }">
     <div class="recognition-caption"><strong>{{ display.kind }}</strong><small v-if="display.binding">{{ display.binding }}</small></div>
-    <div v-if="display.inline" class="node-image legacy-preview"><img :src="display.inline" :alt="display.text ? '文字区域图片预览' : '识别图片预览'" /></div>
+    <ColorMarkerSummary v-if="display.marker" :step="step" compact />
+    <div v-else-if="display.inline" class="node-image legacy-preview"><img :src="display.inline" :alt="display.text ? '文字区域图片预览' : '识别图片预览'" /></div>
     <CanvasNodeImage v-else :script-id="scriptId" :version-id="versionId" :blob-id="display.blob"
       :empty-text="display.empty" :description="display.text ? '文字区域图片预览' : '识别图片预览'" />
     <div v-if="display.text && showText" class="recognition-text" :class="{ missing: !display.target.trim() }">

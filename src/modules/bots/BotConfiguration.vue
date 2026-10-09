@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import HelpHint from '../../shared/ui/HelpHint.vue'
+import MemeConnectionSettings from './memes/MemeConnectionSettings.vue'
 import { computed, reactive, ref, watch } from 'vue'
 import { ElAlert, ElButton, ElInput, ElOption, ElSelect } from 'element-plus'
 import { botGrant, createBot, fetchBotConfigVersion, probeGateway, resolveDiscordApplicationId, saveBotConfig, type BotService } from '../../shared/api/bots'
@@ -217,6 +218,7 @@ async function registration() {
       </div>
       <div class="bot-actions"><el-button type="primary" :loading="busy" :disabled="loadingVersion" @click="run(save)">保存配置</el-button><el-button v-if="kind === 'qq'" :loading="busy" :disabled="!current.desired_config_version_id" @click="run(probe)">验证连接</el-button><el-button v-else :loading="busy" @click="run(registration)">生成注册码</el-button></div>
       <div v-if="grant" class="bot-grant"><el-input :model-value="grant" readonly type="password" show-password /><el-button @click="grant = ''">隐藏</el-button></div>
+      <MemeConnectionSettings :key="current.service_id" :service-id="current.service_id" :kind="kind" />
       
     </template>
   </section>

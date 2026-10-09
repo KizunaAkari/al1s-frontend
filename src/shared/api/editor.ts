@@ -7,7 +7,7 @@ export type EditorSession = {
   status: 'pending' | 'active' | 'closing' | 'closed' | 'failed' | 'expired'
   error_code: string | null
   connection?: {
-    transport: 'scrcpy-managed-v1'
+    transport: 'scrcpy-managed-v1' | 'android-reverse-v1'
     scrcpy_version: '3.3.4'
     video_ws_url: string
     control_ws_url: string

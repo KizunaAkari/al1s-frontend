@@ -157,7 +157,7 @@ onBeforeUnmount(()=>{clearInterval(phoneTimer);draftGeneration++;draftController
     <FloatingPhonePanel v-show="!phoneHidden" :landscape="landscape" :connected="connected" :docked="phoneDocked">
       <div class="phone-content" :class="{'phone-disconnected':!connected}">
         <div class="phone-device-select"><ElSelect v-model="selected" placeholder="选择挂载手机" aria-label="选择手机" clearable :teleported="false">
-          <ElOption v-for="d in devices.items.value" :key="d.device_id" :value="d.device_id" :label="`${d.display_name}（${phoneAvailability(d).label}）`" :disabled="d.mode!=='mounted'" />
+          <ElOption v-for="d in devices.items.value" :key="d.device_id" :value="d.device_id" :label="`${d.display_name}（${phoneAvailability(d).label}）`" :disabled="d.mode==='unassigned' || !d.managing_terminal_id" />
         </ElSelect><span v-if="device" class="phone-availability" :class="{ connected: device.availability === 'connected' }" title="手机连接状态">{{ phoneAvailability(device).label }}</span><ElButton :icon="Refresh" aria-label="刷新设备" title="刷新设备" :loading="devices.loading.value" @click="devices.load(true)" /><ElButton v-if="devices.nextCursor.value" @click="devices.load()">更多</ElButton></div>
         <p v-if="devices.error.value" role="alert">{{ devices.error.value.message }}</p>
         <p v-if="device && device.availability !== 'connected'">{{ phoneAvailability(device).label }}：{{ phoneAvailability(device).guidance }} 已保存脚本仍可编辑。</p>

@@ -7,6 +7,7 @@ import { fetchTaskDetails, type AttemptDetail } from '../../shared/api/task-deta
 import type { TaskHistoryItem } from '../../shared/api/tasks'
 import StatusBadge from '../../shared/ui/StatusBadge.vue'
 import FailureImage from './FailureImage.vue'
+import TaskFailureExplanation from './TaskFailureExplanation.vue'
 import TaskLineupWorkspace from './TaskLineupWorkspace.vue'
 import { FailureReview } from './failure-review'
 
@@ -66,31 +67,7 @@ async function confirm(attempt: AttemptDetail) {
   catch (e) { if (isCurrent(task, current)) error.value = e instanceof Error ? e.message : '确认失败' }
   finally { if (isCurrent(task, current)) busy.value = false }
 }
-async function closeDetails(done: () => void) {
-  if (isLineup.value) { done(); return }
-  if (busy.value) return
-  if (!props.task || !review) { done(); return }
-  const task = props.task.task_id
-  const current = generation
-  const session = review
-  const active = () => isCurrent(task, current)
-  busy.value = true; error.value = ''
-  try {
-    let page = { items: items.value, next_cursor: cursor.value }
-    while (active()) {
-      for (const attempt of page.items) {
-        if (!active()) return
-        if (attempt.result !== 'failure' || attempt.confirmed || attempt.expired || !attempt.details.length) continue
-        if (!await session.complete(attempt, active)) return
-        attempt.confirmed = true
-      }
-      if (!page.next_cursor) break
-      page = await fetchTaskDetails(task, page.next_cursor)
-    }
-    if (active()) done()
-  } catch (e) { if (active()) error.value = e instanceof Error ? e.message : '关闭失败' }
-  finally { if (active()) busy.value = false }
-}
+function closeDetails(done: () => void) { done() }
 watch(() => [visible.value, props.task?.task_id], () => {
   ++generation
   busy.value = false
@@ -120,11 +97,11 @@ watch(() => [visible.value, props.task?.task_id], () => {
         <h3>第 {{ attempt.attempt_no }} 次尝试</h3>
         <StatusBadge :value="attempt.result ?? attempt.status" />
       </div>
-      <p v-if="attempt.error_code">{{ attempt.failure_phase }} · {{ attempt.error_code }}</p>
+      <TaskFailureExplanation v-if="attempt.result === 'failure' || attempt.error_code" :attempt="attempt" />
       <p v-if="attempt.confirmed">已确认处理</p>
       <p v-else-if="attempt.expired">详情已超过30天保留期</p>
       <template v-else>
-        <p v-if="!lineupRecordId && !attempt.details.length && !executionScreenshots(attempt).length">当前没有可展示的截图或诊断。</p>
+        <p v-if="!lineupRecordId && !attempt.details.length && !executionScreenshots(attempt).length && !attempt.recognition_failures?.length && !attempt.failure_contexts?.length">当前没有可展示的截图或诊断。</p>
         <section v-if="executionScreenshots(attempt).length" class="execution-screenshots" aria-label="执行截图">
           <p class="execution-screenshot-title">执行截图 <span data-screenshot-count>{{ executionScreenshots(attempt).length }} 张</span></p>
           <div class="execution-screenshot-list">
@@ -148,7 +125,7 @@ watch(() => [visible.value, props.task?.task_id], () => {
         <ElButton v-if="attempt.result === 'failure' && attempt.details.length" :disabled="busy" @click="confirm(attempt)">
           {{ busy ? '处理中…' : '确认并关闭' }}
         </ElButton>
-        <p v-if="attempt.result === 'failure' && attempt.details.length" class="review-hint">确认后清除失败详情，任务历史和录屏保留。 <HelpHint subject="确认并关闭">未下载的失败原图会自动下载。</HelpHint></p>
+        <p v-if="attempt.result === 'failure' && attempt.details.length" class="review-hint">确认后清除失败详情，任务历史和录屏保留。 <HelpHint subject="确认并关闭">有失败原图时，请先手动下载。仅关闭窗口不会清理。</HelpHint></p>
       </template>
     </article>
     <ElButton v-if="cursor" :disabled="busy" @click="load()">加载更多</ElButton>

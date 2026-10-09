@@ -58,15 +58,85 @@ it('recovers 409 only with confirmation and closed acknowledgement',async()=>{
  await vi.advanceTimersByTimeAsync(2000);await flushPromises()
  expect(post).toHaveBeenCalledTimes(2);expect(post.mock.calls[0]![2]).not.toEqual(post.mock.calls[1]![2]);wrapper.unmount()
 })
-it('revokes control when platform polling fails and does not send input',async()=>{
+it('revokes control immediately when platform permission is rejected',async()=>{
  vi.useFakeTimers();const {get}=setup();const wrapper=panel();await flushPromises()
  const callbacks=vi.mocked(connectPhoneVideo).mock.calls[0]!
  callbacks[4]!(576,1280);callbacks[3]!()
  vi.mocked(connectPhoneControl).mock.calls[0]![1]();await flushPromises()
- get.mockRejectedValue(new Error('offline'))
+ get.mockRejectedValue(new ApiError('forbidden',{code:'forbidden',status:403}))
  await vi.advanceTimersByTimeAsync(2000);await flushPromises()
  expect(wrapper.find('[aria-label="主页"]').attributes('disabled')).toBeDefined()
  expect(vi.mocked(connectPhoneControl).mock.results[0]!.value.close).toHaveBeenCalled()
+ wrapper.unmount()
+})
+it('reopens Android media after revoked control without replaying gestures or changing the lease',async()=>{
+ vi.useFakeTimers();const {post,get,remove}=setup()
+ const direct={...active,connection:{...active.connection,transport:'android-reverse-v1'}}
+ post.mockResolvedValue({data:direct});get.mockResolvedValue({data:direct})
+ const wrapper=panel();await flushPromises()
+ const video=vi.mocked(connectPhoneVideo).mock.calls[0]!
+ video[4]!(720,1600);video[3]!();await flushPromises()
+ const callbacks=vi.mocked(connectPhoneControl).mock.calls[0]!
+ callbacks[1]();await flushPromises()
+ callbacks[2]();await flushPromises()
+ expect(vi.mocked(connectPhoneVideo).mock.results[0]!.value).toHaveBeenCalledOnce()
+ expect(wrapper.find('[aria-label="主页"]').attributes('disabled')).toBeDefined()
+ await vi.advanceTimersByTimeAsync(5000);await flushPromises()
+ expect(connectPhoneVideo).toHaveBeenCalledTimes(2)
+ expect(post).toHaveBeenCalledOnce();expect(remove).not.toHaveBeenCalled()
+ callbacks[1]();await flushPromises()
+ expect(wrapper.find('[aria-label="主页"]').attributes('disabled')).toBeDefined()
+ expect(vi.mocked(connectPhoneControl).mock.results[0]!.value.send).not.toHaveBeenCalled()
+ wrapper.unmount()
+})
+it('keeps control through transient failures for only ten seconds from the last confirmation',async()=>{
+ vi.useFakeTimers();const {get}=setup();const wrapper=panel();await flushPromises()
+ const video=vi.mocked(connectPhoneVideo).mock.calls[0]!
+ video[4]!(720,1600);video[3]!();vi.mocked(connectPhoneControl).mock.calls[0]![1]();await flushPromises()
+ const control=vi.mocked(connectPhoneControl).mock.results[0]!.value
+ get.mockRejectedValue(new ApiError('busy',{code:'database_busy',status:503}))
+ await vi.advanceTimersByTimeAsync(9999);await flushPromises()
+ expect(control.close).not.toHaveBeenCalled()
+ expect(wrapper.find('[aria-label="主页"]').attributes('disabled')).toBeUndefined()
+ expect(wrapper.find('el-alert-stub').attributes('title')).toContain('连接波动')
+ await vi.advanceTimersByTimeAsync(1);await flushPromises()
+ expect(control.close).toHaveBeenCalledOnce()
+ expect(wrapper.find('[aria-label="主页"]').attributes('disabled')).toBeDefined()
+ get.mockResolvedValue({data:active})
+ await vi.advanceTimersByTimeAsync(2000);await flushPromises()
+ expect(connectPhoneControl).toHaveBeenCalledTimes(2)
+ expect(control.send).not.toHaveBeenCalled()
+ expect(wrapper.find('el-alert-stub').exists()).toBe(false)
+ wrapper.unmount()
+})
+it('expires confirmation during a hung poll and does not start overlapping polls',async()=>{
+ vi.useFakeTimers();const {get}=setup();const wrapper=panel();await flushPromises()
+ const video=vi.mocked(connectPhoneVideo).mock.calls[0]!
+ video[4]!(720,1600);video[3]!();vi.mocked(connectPhoneControl).mock.calls[0]![1]();await flushPromises()
+ let resolve!:(value:unknown)=>void
+ get.mockImplementation(()=>new Promise(r=>{resolve=r}))
+ await vi.advanceTimersByTimeAsync(2000);await flushPromises()
+ const count=get.mock.calls.length
+ await vi.advanceTimersByTimeAsync(8000);await flushPromises()
+ expect(wrapper.find('[aria-label="主页"]').attributes('disabled')).toBeDefined()
+ await wrapper.findAll('button').find(b=>b.text()==='重试')!.trigger('click');await flushPromises()
+ await vi.advanceTimersByTimeAsync(12000);await flushPromises()
+ expect(get.mock.calls.length).toBe(count)
+ expect(wrapper.find('[aria-label="主页"]').attributes('disabled')).toBeDefined()
+ resolve({data:active});await flushPromises()
+ // A response to a request older than the window cannot revive input.
+ expect(wrapper.find('[aria-label="主页"]').attributes('disabled')).toBeDefined()
+ wrapper.unmount()
+})
+it('keeps Linux video playing when only its control channel closes',async()=>{
+ vi.useFakeTimers();setup();const wrapper=panel();await flushPromises()
+ const video=vi.mocked(connectPhoneVideo).mock.calls[0]!
+ video[4]!(720,1600);video[3]!();await flushPromises()
+ vi.mocked(connectPhoneControl).mock.calls[0]![2]();await flushPromises()
+ await vi.advanceTimersByTimeAsync(6000);await flushPromises()
+ expect(connectPhoneVideo).toHaveBeenCalledOnce()
+ expect(vi.mocked(connectPhoneVideo).mock.results[0]!.value).not.toHaveBeenCalled()
+ expect(connectPhoneControl).toHaveBeenCalledTimes(2)
  wrapper.unmount()
 })
 it.each(['pointerup','pointercancel','lostpointercapture'])('releases a drag outside the video on %s without closing control',async releaseEvent=>{

@@ -11,6 +11,7 @@ const openScript = vi.hoisted(() => vi.fn())
 const fetchScripts = vi.hoisted(() => vi.fn())
 const fetchApplicationDevices = vi.hoisted(() => vi.fn())
 const capturePhoneScreenshot = vi.hoisted(() => vi.fn())
+const readImportedScreenshot = vi.hoisted(() => vi.fn())
 const saveScriptDocument = vi.hoisted(() => vi.fn())
 
 vi.mock('../src/shared/api/maa-script-editor', () => ({
@@ -20,6 +21,7 @@ vi.mock('../src/shared/api/maa-script-editor', () => ({
 vi.mock('../src/shared/api/maa', () => ({ fetchScripts }))
 vi.mock('../src/shared/api/maa-applicability', () => ({ fetchApplicationDevices }))
 vi.mock('../src/modules/maa/editor/screenshot-connection', () => ({ capturePhoneScreenshot }))
+vi.mock('../src/modules/maa/editor/imported-screenshot', () => ({ readImportedScreenshot }))
 vi.mock('vue-router', () => ({
   onBeforeRouteLeave: vi.fn(),
   onBeforeRouteUpdate: vi.fn(),
@@ -32,6 +34,7 @@ import ScriptQuickTest from '../src/modules/maa/editor/ScriptQuickTest.vue'
 import StepActionForm from '../src/modules/maa/editor/StepActionForm.vue'
 import WorkflowOutline from '../src/modules/maa/editor/WorkflowOutline.vue'
 import GlobalPopupRuleForm from '../src/modules/maa/editor/GlobalPopupRuleForm.vue'
+import StepRegionField from '../src/modules/maa/editor/StepRegionField.vue'
 
 const script = {
   script_id: 'script-1',
@@ -99,6 +102,7 @@ beforeEach(() => {
   fetchScripts.mockReset()
   fetchApplicationDevices.mockReset()
   capturePhoneScreenshot.mockReset()
+  readImportedScreenshot.mockReset()
   saveScriptDocument.mockReset()
   fetchApplicationDevices.mockResolvedValue([{ application_id: 'application-1', device_id: 'device-1' }])
   openScript.mockResolvedValue({
@@ -118,7 +122,7 @@ it('opens configuration on the live phone with the parameter and debug tabs', as
     wrapper.getComponent(WorkflowCanvas).vm.$emit('parameters')
     await flushPromises()
     expect(wrapper.findAll('.media-tabs button').map(button => button.text())).toEqual(['手机实时画面', '截图标注'])
-    expect(wrapper.findAll('.media-tabs button')[1]?.attributes('disabled')).toBeDefined()
+    expect(wrapper.findAll('.media-tabs button')[1]?.attributes('disabled')).toBeUndefined()
     expect(wrapper.findAll('.config-tabs button').map(button => button.text())).toEqual(['识别与执行', '独立规则', '调试日志'])
     expect(wrapper.find('.media-live').isVisible()).toBe(true)
     expect(wrapper.emitted('phoneDock')?.at(-1)).toEqual([true])
@@ -379,6 +383,63 @@ it('preserves a draft from an older server version after edits and unmount', asy
   await flushPromises()
   expect(writeDraft).not.toHaveBeenCalled()
   expect(deleteDraft).not.toHaveBeenCalled()
+})
+
+it('imports a failure screenshot offline and reuses it when choosing the region purpose', async () => {
+  openScript.mockResolvedValueOnce({ script, document: { steps: [{ action: 'wait_image' }],
+    target: { screen_size: { width: 576, height: 1280 } } } })
+  const screenshot = { blob: new Blob(['png']), width: 576, height: 1280 }
+  readImportedScreenshot.mockResolvedValue(screenshot)
+  const wrapper = mount(ScriptWorkflowPanel, { props: { scriptId: 'script-1', device: { device_id: 'device-1' } as never }, global: { stubs } })
+  try {
+    await flushPromises()
+    wrapper.getComponent(WorkflowCanvas).vm.$emit('parameters')
+    await flushPromises()
+    await wrapper.findAll('.media-tabs button')[1]!.trigger('click')
+    const input = wrapper.get('input[type="file"]')
+    const file = new File(['png'], 'step-04-failure.png', { type: 'image/png' })
+    Object.defineProperty(input.element, 'files', { configurable: true, value: [file] })
+    await input.trigger('change')
+    await flushPromises()
+    expect(wrapper.getComponent(StepImageBindings).props('screenshot')).toEqual(screenshot)
+    expect(wrapper.text()).toContain('step-04-failure.png')
+    await wrapper.setProps({ device: { device_id: 'device-1', availability: 'disconnected' } as never })
+    await flushPromises()
+    expect(wrapper.getComponent(StepImageBindings).props('screenshot')).toEqual(screenshot)
+    await wrapper.getComponent(StepRegionField).find('el-button-stub').trigger('click')
+    expect(wrapper.getComponent(StepImageBindings).props('selectedUse')).toBe('template')
+    expect(capturePhoneScreenshot).not.toHaveBeenCalled()
+    await wrapper.findAll('.media-tabs button')[0]!.trigger('click')
+    await wrapper.findAll('.media-tabs button')[1]!.trigger('click')
+    expect(wrapper.getComponent(StepImageBindings).props('screenshot')).toEqual(screenshot)
+    expect(capturePhoneScreenshot).not.toHaveBeenCalled()
+    await wrapper.setProps({ device: { device_id: 'device-2' } as never })
+    await flushPromises()
+    expect(wrapper.findComponent(StepImageBindings).exists()).toBe(false)
+  } finally { wrapper.unmount() }
+})
+
+it('can replace an imported image with an explicit fresh phone screenshot', async () => {
+  const imported = { blob: new Blob(['file']), width: 576, height: 1280 }
+  const phone = { blob: new Blob(['phone']), width: 576, height: 1280 }
+  readImportedScreenshot.mockResolvedValue(imported)
+  capturePhoneScreenshot.mockResolvedValue(phone)
+  const wrapper = mount(ScriptWorkflowPanel, { props: { scriptId: 'script-1', device: { device_id: 'device-1' } as never,
+    screenshotUrl: 'wss://terminal/session-one/screenshot' }, global: { stubs } })
+  try {
+    await flushPromises()
+    wrapper.getComponent(WorkflowCanvas).vm.$emit('parameters')
+    await flushPromises()
+    await wrapper.findAll('.media-tabs button')[1]!.trigger('click')
+    await flushPromises()
+    const input = wrapper.get('input[type="file"]')
+    Object.defineProperty(input.element, 'files', { configurable: true, value: [new File(['png'], 'failure.png', { type: 'image/png' })] })
+    await input.trigger('change'); await flushPromises()
+    expect(wrapper.getComponent(StepImageBindings).props('screenshot')).toEqual(imported)
+    await wrapper.get('[data-recapture-screenshot]').trigger('click'); await flushPromises()
+    expect(wrapper.getComponent(StepImageBindings).props('screenshot')).toEqual(phone)
+    expect(wrapper.text()).not.toContain('failure.png')
+  } finally { wrapper.unmount() }
 })
 
 it('saves a conflicted draft baseline and reopens without losing the old history', async () => {
