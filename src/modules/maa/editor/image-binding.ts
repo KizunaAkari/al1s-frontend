@@ -11,9 +11,9 @@ export function bindImage(doc: ScriptDocument, index: number, size: { width: num
     if (branchIndex !== undefined || !Array.isArray(rules) || !Number.isInteger(ruleIndex)
       || ruleIndex < 0 || ruleIndex >= rules.length || !rules[ruleIndex]
       || typeof rules[ruleIndex] !== 'object' || Array.isArray(rules[ruleIndex])) throw new Error('独立规则不存在')
-    if (!['template', 'click', 'point'].includes(use)) throw new Error('独立规则仅支持识别图片、点击图片和坐标绑定')
+    if (!['template', 'click', 'point', 'ocr_region'].includes(use)) throw new Error('独立规则仅支持识别图片、文字区域、点击图片和坐标绑定')
     const rule = rules[ruleIndex] as Record<string, unknown>
-    const result = bindImage({ ...doc, steps: [{ ...rule, action: 'wait_click' }] }, 0, size, rect, use, resource)
+    const result = bindImage({ ...doc, steps: [{ ...rule, action: use === 'ocr_region' ? 'recognize_execute' : 'wait_click' }] }, 0, size, rect, use, resource)
     const bound: Record<string, unknown> = { ...result.steps[0] }
     delete bound.action
     if ('action' in rule) bound.action = rule.action

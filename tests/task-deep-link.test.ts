@@ -22,7 +22,7 @@ const stubs = {
   PageHeader: { template: '<header><slot /></header>' },
   DataState: { template: '<div><slot /></div>' },
   StatusBadge: { template: '<span />' },
-  ScheduleOccurrencesDrawer: true,
+  ScheduleOccurrencesList: true,
   ScheduleRevisionDialog: true,
   TaskRecordingsDrawer: true,
   TaskSubmissionDialog: true,

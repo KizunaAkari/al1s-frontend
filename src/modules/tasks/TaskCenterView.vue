@@ -20,12 +20,13 @@ import {
   fetchTaskHistory,
   type ActiveSchedule,
   type TaskHistoryItem,
+  type OccurrenceItem,
 } from '../../shared/api/tasks'
 import { formatDailyTimes, formatDateTime } from '../../shared/presentation/format'
 import DataState from '../../shared/ui/DataState.vue'
 import PageHeader from '../../shared/ui/PageHeader.vue'
 import StatusBadge from '../../shared/ui/StatusBadge.vue'
-import ScheduleOccurrencesDrawer from './ScheduleOccurrencesDrawer.vue'
+import ScheduleOccurrencesList from './ScheduleOccurrencesList.vue'
 import ScheduleRevisionDialog from './ScheduleRevisionDialog.vue'
 import TaskRecordingsDrawer from './TaskRecordingsDrawer.vue'
 import TaskDetailsDrawer from './TaskDetailsDrawer.vue'
@@ -44,11 +45,11 @@ const schedules = useCursorPage<ActiveSchedule, string>(
 const mutatingKey = ref<string | null>(null)
 const revisionDialogVisible = ref(false)
 const revisionSchedule = ref<ActiveSchedule | null>(null)
-const occurrencesDrawerVisible = ref(false)
-const occurrencesSchedule = ref<ActiveSchedule | null>(null)
+const expandedScheduleId = ref<string | null>(null)
 const recordingTask = ref<TaskHistoryItem | null>(null)
 const recordingsVisible = ref(false)
-const detailTask = ref<Pick<TaskHistoryItem, 'task_id'> | null>(null)
+const detailTask = ref<(Pick<TaskHistoryItem, 'task_id'> & { name?: string }) | null>(null)
+const detailExecutionId = ref<string>()
 const detailsVisible = ref(false)
 
 const taskIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -61,6 +62,7 @@ function openTaskFromQuery(value: unknown): void {
   const taskId = taskIdFromQuery(value)
   if (!taskId) return
   detailTask.value = { task_id: taskId }
+  detailExecutionId.value = undefined
   detailsVisible.value = true
 }
 
@@ -161,8 +163,15 @@ function openRevision(schedule: ActiveSchedule): void {
 }
 
 function openOccurrences(schedule: ActiveSchedule): void {
-  occurrencesSchedule.value = schedule
-  occurrencesDrawerVisible.value = true
+  expandedScheduleId.value = expandedScheduleId.value === schedule.schedule_id ? null : schedule.schedule_id
+}
+
+function openOccurrenceDetails(schedule: ActiveSchedule, item: OccurrenceItem): void {
+  if (!item.execution_id) return
+  detailTask.value = { task_id: schedule.task_id,
+    name: `${schedule.name} · ${item.display_ordinal ? `第 ${item.display_ordinal} 轮` : `历史 #${item.history_ordinal}`}` }
+  detailExecutionId.value = item.execution_id
+  detailsVisible.value = true
 }
 
 async function refreshCurrent(): Promise<void> {
@@ -224,14 +233,14 @@ onMounted(refreshCurrent)
                 <td><span v-if="task.record_video" class="resource-chip">已勾选录屏</span><span v-else>---</span></td>
                 <td>
                   <div class="table-actions">
-                    <ElButton size="small" @click="detailTask = task; detailsVisible = true">详情</ElButton>
-                    <ElButton v-if="task.record_video" size="small" @click="recordingTask = task; recordingsVisible = true">录屏</ElButton>
+                    <ElButton size="small" @click="detailTask = task; detailExecutionId = undefined; detailsVisible = true">详情</ElButton>
                     <ElTooltip :content="task.cancel.refusal_message ?? '当前状态不允许取消'" :disabled="task.cancel.allowed">
                       <span><ElButton size="small" :disabled="!task.cancel.allowed" :loading="mutatingKey === `task:${task.task_id}`" @click="cancelTask(task)">取消</ElButton></span>
                     </ElTooltip>
                     <ElTooltip :content="task.delete.refusal_message ?? '当前状态不允许删除'" :disabled="task.delete.allowed">
                       <span><ElButton size="small" type="danger" plain :disabled="!task.delete.allowed" :loading="mutatingKey === `task:${task.task_id}`" @click="removeTask(task)">删除</ElButton></span>
                     </ElTooltip>
+                    <ElButton v-if="task.record_video" size="small" @click="recordingTask = task; recordingsVisible = true">录屏</ElButton>
                   </div>
                 </td>
               </tr>
@@ -282,7 +291,7 @@ onMounted(refreshCurrent)
               <span>更新 {{ formatDateTime(schedule.updated_at) }}</span>
             </div>
             <div class="schedule-card__actions">
-              <ElButton size="small" @click="openOccurrences(schedule)">查看轮次</ElButton>
+              <ElButton size="small" :aria-expanded="expandedScheduleId === schedule.schedule_id" :aria-controls="`schedule-occurrences-${schedule.schedule_id}`" @click="openOccurrences(schedule)">{{ expandedScheduleId === schedule.schedule_id ? '收起轮次' : '查看轮次' }}</ElButton>
               <ElTooltip :content="schedule.pause.refusal_message ?? '当前状态不允许暂停'" :disabled="schedule.pause.allowed">
                 <span><ElButton size="small" :disabled="!schedule.pause.allowed" :loading="mutatingKey === `schedule:${schedule.schedule_id}`" @click="changeSchedule(schedule, 'pause')">暂停</ElButton></span>
               </ElTooltip>
@@ -296,6 +305,7 @@ onMounted(refreshCurrent)
                 <span><ElButton size="small" type="danger" plain :disabled="!schedule.terminate.allowed" :loading="mutatingKey === `schedule:${schedule.schedule_id}`" @click="changeSchedule(schedule, 'terminate')">中止</ElButton></span>
               </ElTooltip>
             </div>
+            <ScheduleOccurrencesList v-if="expandedScheduleId === schedule.schedule_id" :schedule="schedule" @open-execution="item => openOccurrenceDetails(schedule, item)" />
           </article>
         </div>
         <div v-if="schedules.nextCursor.value || schedules.error.value" class="list-footer">
@@ -305,15 +315,11 @@ onMounted(refreshCurrent)
       </DataState>
     </section>
     <TaskRecordingsDrawer v-model="recordingsVisible" :task="recordingTask" />
-    <TaskDetailsDrawer v-model="detailsVisible" :task="detailTask" />
+    <TaskDetailsDrawer v-model="detailsVisible" :task="detailTask" :execution-id="detailExecutionId" />
     <ScheduleRevisionDialog
       v-model="revisionDialogVisible"
       :schedule="revisionSchedule"
       @updated="schedules.load(true)"
-    />
-    <ScheduleOccurrencesDrawer
-      v-model="occurrencesDrawerVisible"
-      :schedule="occurrencesSchedule"
     />
   </div>
 </template>
@@ -325,8 +331,9 @@ onMounted(refreshCurrent)
 .task-history-table th:nth-child(5) { width: 68px; }
 .task-history-table th:nth-child(6) { width: 150px; }
 .task-history-table th:nth-child(7) { width: 116px; }
-.task-history-table th:last-child { width: 200px; }
+.task-history-table th:last-child { width: 248px; }
 .task-history-table .task-name { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
-.task-history-table .table-actions { gap: 6px; }
+.task-history-table .table-actions { gap: 6px; flex-wrap: nowrap; }
+.task-history-table .table-actions > * { flex-shrink: 0; }
 .task-history-table .resource-chip { white-space: nowrap; }
 </style>

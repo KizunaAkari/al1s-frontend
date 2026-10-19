@@ -24,6 +24,16 @@ it('loads on opening and shows exact module and local step', async () => {
   wrapper.unmount()
 })
 
+it('reloads details for the selected schedule execution without changing the task', async () => {
+  const get = vi.spyOn(apiClient, 'get').mockResolvedValue({ data: { items: [], next_cursor: null } })
+  const wrapper = drawer(); await flushPromises()
+  await wrapper.setProps({ executionId: 'execution-1' } as never); await flushPromises()
+  expect(get).toHaveBeenLastCalledWith('/tasks/task/details', { params: { cursor: undefined, execution_id: 'execution-1' } })
+  await wrapper.setProps({ executionId: 'execution-2' } as never); await flushPromises()
+  expect(get).toHaveBeenLastCalledWith('/tasks/task/details', { params: { cursor: undefined, execution_id: 'execution-2' } })
+  wrapper.unmount()
+})
+
 it('opens the lineup workspace for legacy single tasks without generic empty diagnostics', async () => {
   const ids=[10001,10002,10003,10004,20001,20002,10005,10006,10007,10008,20003,20004]
   const record={id:'record-1',name:'battle.png',task_id:'task',state:'success',review:null,annotation:null,needs_attention:false,

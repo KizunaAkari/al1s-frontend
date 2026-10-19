@@ -23,7 +23,7 @@ it('shows controlled defaults without changing a smart swipe step', () => {
   expect(inputNumber(wrapper, 'y1').props('modelValue')).toBe(0)
   expect(inputNumber(wrapper, 'x2').props('modelValue')).toBe(0)
   expect(inputNumber(wrapper, 'y2').props('modelValue')).toBe(0)
-  expect(inputNumber(wrapper, '滑动时长（毫秒）').props('modelValue')).toBe(350)
+  expect(inputNumber(wrapper, '滑动时长（秒）').props('modelValue')).toBe(0.35)
   expect(wrapper.findAllComponents(ElInputNumber)).toHaveLength(6)
   expect(wrapper.emitted('change')).toBeUndefined()
   expect(step).toEqual({ action: 'smart_swipe', step_unknown: { keep: true } })
@@ -75,7 +75,7 @@ it('creates default nested swipe fields on edit and preserves nested unknown fie
     swipe_unknown: 'keep',
   })
   await wrapper.setProps({ step: next })
-  await inputNumber(wrapper, '滑动时长（毫秒）').vm.$emit('change', 60000)
+  await inputNumber(wrapper, '滑动时长（秒）').vm.$emit('change', 60)
   next = latestChange(wrapper)
   expect((next.swipe as Record<string, unknown>).duration_ms).toBe(60000)
   expect((next.swipe as Record<string, unknown>).swipe_unknown).toBe('keep')
@@ -87,13 +87,13 @@ it('creates all nested defaults when a missing swipe is edited and exposes the r
   const step: WorkflowStep = { action: 'smart_swipe' }
   const wrapper = mount(StepSmartSwipeForm, { props: { step } })
   const x1 = inputNumber(wrapper, 'x1')
-  const duration = inputNumber(wrapper, '滑动时长（毫秒）')
+  const duration = inputNumber(wrapper, '滑动时长（秒）')
   const wait = inputNumber(wrapper, '滑动后等待秒数')
 
   expect(x1.props('min')).toBe(0)
   expect(x1.props('max')).toBe(8191)
-  expect(duration.props('min')).toBe(1)
-  expect(duration.props('max')).toBe(60000)
+  expect(duration.props('min')).toBe(0.001)
+  expect(duration.props('max')).toBe(60)
   expect(wait.props('min')).toBe(0)
   expect(wait.props('max')).toBe(300)
   expect(wrapper.findAllComponents(ElOption).some(option => (

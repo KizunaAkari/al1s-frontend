@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { millisecondsToSeconds, secondsToMilliseconds } from '../../../shared/time-units'
 import HelpHint from '../../../shared/ui/HelpHint.vue'
 import StepPointPicker from './StepPointPicker.vue'
 import StepRegionField from './StepRegionField.vue'
@@ -190,9 +191,9 @@ function updateSearchRegion(key: OcrRegionKey, value: number | null | undefined)
           <ElInputNumber :model-value="number('click_count') ?? 1" :min="1" :step="1" :precision="0"
             aria-label="点击次数" @change="value => update('click_count', value)" />
         </label>
-        <label>点击间隔（毫秒）
-          <ElInputNumber :model-value="number('click_interval_ms') ?? 120" :min="0" :max="3600000" :step="1" :precision="0"
-            aria-label="点击间隔（毫秒）" @change="value => update('click_interval_ms', value)" />
+        <label>点击间隔（秒）
+          <ElInputNumber :model-value="millisecondsToSeconds(number('click_interval_ms') ?? 120)" :min="0" :max="3600" :step="0.1" :precision="3"
+            aria-label="点击间隔（秒）" @change="value => update('click_interval_ms', secondsToMilliseconds(value))" />
         </label>
         
         <template v-if="clickMode === 'fixed'">

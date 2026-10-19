@@ -3,7 +3,7 @@ import { expect, it, vi } from 'vitest'
 import MemeConnectionSettings from '../src/modules/bots/memes/MemeConnectionSettings.vue'
 
 const api = vi.hoisted(() => ({ fetchMemeSettings: vi.fn(), saveMemeSettings: vi.fn() }))
-vi.mock('../src/shared/api/memes', () => api)
+vi.mock('../src/shared/api/memes', () => ({ ...api, createMemeApi: () => api }))
 it('loads only on opening and saves QQ event URL and allowed groups under the chosen connection', async () => {
   const identity = '11111111-1111-4111-8111-111111111111'
   const settings = { bot_service_id: identity, row_version: 0, enabled: false, private_enabled: false,

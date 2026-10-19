@@ -19,7 +19,8 @@ export function toggleGlobalPopups(document: ScriptDocument, enabled: boolean): 
   }
   // An unfinished new condition cannot pass server validation even when disabled.
   // Turning the group off removes it; previously configured conditions remain intact.
-  return { ...document, global_popups: rules.filter(rule => enabled || rule.template_base64)
+  return { ...document, global_popups: rules.filter(rule => enabled || (rule.recognition_mode === 'text'
+    ? typeof rule.text === 'string' && rule.text.trim() : rule.template_base64))
     .map(rule => ({ ...rule, enabled })) }
 }
 

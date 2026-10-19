@@ -3,7 +3,7 @@ import HelpHint from '../../../shared/ui/HelpHint.vue'
 import { debugProgress, type DebugProgress } from './quick-test-progress'
 import StepPointPicker from './StepPointPicker.vue'
 import { apiClient } from '../../../shared/api/client'
-import { computed, nextTick, provide, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, provide, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router'
 import { ElAlert, ElButton, ElMessageBox, ElDrawer, ElDropdown, ElDropdownItem, ElDropdownMenu } from 'element-plus'
 import { fetchScripts, type MaaScript } from '../../../shared/api/maa'
@@ -73,6 +73,8 @@ const uploading = ref(false)
 const error = ref('')
 const saved = ref(false)
 const testing = ref(false)
+let loadGeneration = 0
+onBeforeUnmount(() => { loadGeneration++ })
 const {
   view, mediaView, configGroup, configDocument, configChanged, configStep,
   openParameters, setMedia, cancelConfig, applyConfig,
@@ -367,8 +369,9 @@ function restoreConfiguration(draft: EditorDraft) {
   emit('phoneDock', true)
   emit('phoneHidden', false)
 }
-async function recoverLocalDraft(serverDocument: ScriptDocument) {
+async function recoverLocalDraft(serverDocument: ScriptDocument, current: () => boolean) {
   const draft = await drafts.read()
+  if (!current()) return
   const resume = readEditorResume()
   const resumeDraft = resume?.scriptId === props.scriptId && resume.restoreDraft === true
   if (draft) {
@@ -380,11 +383,13 @@ async function recoverLocalDraft(serverDocument: ScriptDocument) {
           confirmButtonText: '恢复', cancelButtonText: '舍弃', type: 'warning',
         })
       } catch {
+        if (!current()) return
         restore = false
         try { await drafts.discardOriginal() }
         catch { draftError.value = '未能清理旧草稿，原记录仍受保护' }
       }
     }
+    if (!current()) return
     if (restore) {
       drafts.restore(draft)
       if (!sameDocument(recovered, serverDocument)) {
@@ -398,13 +403,17 @@ async function recoverLocalDraft(serverDocument: ScriptDocument) {
     writeEditorResume({ ...resume, restoreDraft: false })
 }
 async function load() {
+  const generation = ++loadGeneration
+  const current = () => generation === loadGeneration
   drafts.beginLoad()
   busy.value = true
   error.value = ''
   try {
     const result = await openScript(props.scriptId)
+    if (!current()) return
     if (!props.device) throw new Error('请先选择手机')
     const bindings = await fetchApplicationDevices(result.script.application_id)
+    if (!current()) return
     if (!bindings.some(item => item.device_id === props.device?.device_id))
       throw new Error('当前手机未获此脚本分类授权，请在脚本库配置适用手机')
     script.value = result.script
@@ -413,10 +422,11 @@ async function load() {
     selectedBranch.value = undefined
     selected.value = Math.max(0, Math.min((props.initialStep ?? 1) - 1, result.document.steps.length - 1))
     dirty.value = !result.script.current_version_id
-    await recoverLocalDraft(result.document)
+    await recoverLocalDraft(result.document, current)
+    if (!current()) return
     await targets.load(true)
-  } catch (e) { error.value = e instanceof Error ? e.message : '读取脚本失败' }
-  finally { busy.value = false }
+  } catch (e) { if (current()) error.value = e instanceof Error ? e.message : '读取脚本失败' }
+  finally { if (current()) busy.value = false }
 }
 function change(value: WorkflowStep) {
   if (!document.value || busy.value || testing.value) return
@@ -438,9 +448,9 @@ function changeStepStructure(value: ScriptDocument, index: number) {
   selectedGlobal.value = false
   changeStructure(value, index)
 }
-async function allowLeave(to: { path: string }) {
+async function allowLeave(to: { path: string; query?: { script_id?: unknown } }) {
   if (busy.value || testing.value || uploading.value) return false
-  if (to.path !== '/editor' && to.path !== '/login') {
+  if ((to.path !== '/editor' && to.path !== '/login') || (to.path === '/editor' && !to.query?.script_id)) {
     if (!await drafts.preserveBeforeLeave()) return false
     writeEditorResume({ scriptId: props.scriptId, deviceId: props.device?.device_id, step: selected.value + 1, restoreDraft: true })
     return true
@@ -463,7 +473,7 @@ onMounted(load)
   <section class="panel workflow-panel" aria-label="脚本步骤配置">
     <Teleport defer :to="identityTarget || 'body'" :disabled="!identityTarget">
       <div class="document-identity"><strong :title="script?.name ?? '读取脚本'">{{ script?.name ?? '读取脚本' }}</strong>
-        <span :class="{ dirty }">{{ dirty ? '未保存' : saved ? '刚刚保存' : document ? '已保存' : '读取中' }}</span>
+        <span :class="{ dirty }">{{ dirty ? '未保存' : saved ? '刚刚保存' : document ? '已保存' : busy ? '读取中' : '未能打开' }}</span>
       </div>
     </Teleport>
     <Teleport defer :to="toolbarTarget || 'body'" :disabled="!toolbarTarget">

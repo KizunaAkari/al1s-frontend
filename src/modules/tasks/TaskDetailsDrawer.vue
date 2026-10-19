@@ -12,7 +12,7 @@ import TaskLineupWorkspace from './TaskLineupWorkspace.vue'
 import { FailureReview } from './failure-review'
 
 const visible = defineModel<boolean>({ required: true })
-const props = defineProps<{ task: (Pick<TaskHistoryItem, 'task_id'> & Partial<Pick<TaskHistoryItem, 'name' | 'source_module' | 'task_type'>>) | null }>()
+const props = defineProps<{ task: (Pick<TaskHistoryItem, 'task_id'> & Partial<Pick<TaskHistoryItem, 'name' | 'source_module' | 'task_type'>>) | null; executionId?: string }>()
 const items = ref<AttemptDetail[]>([])
 const cursor = ref<string | null>(null)
 const busy = ref(false)
@@ -32,7 +32,7 @@ async function load(reset = false) {
   busy.value = true; error.value = ''
   if (reset) { items.value = []; cursor.value = null; lineupRecordId.value = null; sourceModule.value = null }
   try {
-    const result = await fetchTaskDetails(task, reset ? null : cursor.value)
+    const result = await fetchTaskDetails(task, reset ? null : cursor.value, props.executionId)
     if (!isCurrent(task, current)) return
     items.value = reset ? result.items : [...items.value, ...result.items]
     cursor.value = result.next_cursor
@@ -68,7 +68,7 @@ async function confirm(attempt: AttemptDetail) {
   finally { if (isCurrent(task, current)) busy.value = false }
 }
 function closeDetails(done: () => void) { done() }
-watch(() => [visible.value, props.task?.task_id], () => {
+watch(() => [visible.value, props.task?.task_id, props.executionId], () => {
   ++generation
   busy.value = false
   review = props.task ? new FailureReview(props.task.task_id) : undefined

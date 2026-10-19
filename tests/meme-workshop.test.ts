@@ -3,13 +3,23 @@ import { beforeEach, expect, it, vi } from 'vitest'
 import MemeWorkshop from '../src/modules/bots/memes/MemeWorkshop.vue'
 import { defaultLayout } from '../src/modules/bots/memes/layout'
 
-const api = vi.hoisted(() => ({ fetchTemplates: vi.fn(), saveTemplate: vi.fn(), deleteTemplate: vi.fn(), preview: vi.fn(), readAsset: vi.fn(), uploadAsset: vi.fn() }))
+const api = vi.hoisted(() => ({ fetchTemplates: vi.fn(), saveTemplate: vi.fn(), deleteTemplate: vi.fn(), preview: vi.fn(), readAsset: vi.fn(), uploadAsset: vi.fn(), fetchRateLimits: vi.fn(), saveRateLimit: vi.fn() }))
 vi.mock('../src/shared/api/memes', async importOriginal => ({
   ...await importOriginal<typeof import('../src/shared/api/memes')>(), ...api,
 }))
 beforeEach(() => {
   vi.clearAllMocks()
   api.fetchTemplates.mockResolvedValue({ items: [], next_cursor: null })
+  api.fetchRateLimits.mockResolvedValue([{ platform: 'discord', interval_seconds: 5, row_version: 1 }, { platform: 'qq', interval_seconds: 10, row_version: 1 }])
+})
+it('keeps global sending policy out of the content workshop', async () => {
+  const wrapper = mount(MemeWorkshop)
+  await flushPromises()
+  expect(wrapper.find('[data-field="global-discord"]').exists()).toBe(false)
+  expect(wrapper.find('[data-field="global-qq"]').exists()).toBe(false)
+  expect(api.fetchRateLimits).not.toHaveBeenCalled()
+  expect(api.saveRateLimit).not.toHaveBeenCalled()
+  wrapper.unmount()
 })
 it('offers template management and editing without any chat send controls', async () => {
   const wrapper = mount(MemeWorkshop)

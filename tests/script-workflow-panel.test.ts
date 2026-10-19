@@ -496,3 +496,50 @@ it('resumes automatic writes only after explicitly discarding an unreadable old 
   await flushPromises()
   expect(writeDraft).toHaveBeenCalledOnce()
 })
+
+it('preserves unsaved edits before clearing the script route for a phone switch', async () => {
+  const { onBeforeRouteUpdate } = await import('vue-router')
+  vi.mocked(onBeforeRouteUpdate).mockClear()
+  const wrapper = mount(ScriptWorkflowPanel, {
+    props: { scriptId: 'script-1', device: { device_id: 'device-1' } as never }, global: { stubs },
+  })
+  try {
+    await flushPromises()
+    wrapper.getComponent(WorkflowCanvas).vm.$emit('edit', 0, { action: 'wait', seconds: 42 })
+    await flushPromises()
+    const guard = vi.mocked(onBeforeRouteUpdate).mock.calls.at(-1)![0]
+    expect(await guard({ path: '/editor', query: {} } as never,
+      { path: '/editor', query: { script_id: 'script-1' } } as never, vi.fn())).toBe(true)
+    expect(writeDraft).toHaveBeenCalled()
+    expect(writeDraft.mock.calls.at(-1)![0].history.at(-1).steps[0].seconds).toBe(42)
+    expect(deleteDraft).not.toHaveBeenCalled()
+  } finally { wrapper.unmount() }
+})
+
+it('ends loading after an explicitly opened script fails the phone authorization check', async () => {
+  fetchApplicationDevices.mockResolvedValueOnce([])
+  const wrapper = mount(ScriptWorkflowPanel, {
+    props: { scriptId: 'script-1', device: { device_id: 'device-1' } as never }, global: { stubs },
+  })
+  try {
+    await flushPromises()
+    expect(wrapper.get('.document-identity').text()).toContain('未能打开')
+    expect(wrapper.get('.document-identity').text()).not.toContain('读取中')
+    expect(wrapper.get('el-alert-stub').attributes('title')).toContain('当前手机未获此脚本分类授权')
+    expect(wrapper.findComponent(WorkflowCanvas).exists()).toBe(false)
+    expect(readDraft).not.toHaveBeenCalled()
+  } finally { wrapper.unmount() }
+})
+
+it('does not continue authorizing an old script after its editor has unmounted', async () => {
+  let resolve!: (value: unknown) => void
+  openScript.mockReturnValueOnce(new Promise(value => { resolve = value }))
+  const wrapper = mount(ScriptWorkflowPanel, {
+    props: { scriptId: 'script-1', device: { device_id: 'device-1' } as never }, global: { stubs },
+  })
+  wrapper.unmount()
+  resolve({ script, document: { steps: [{ action: 'wait', seconds: 1 }] } })
+  await flushPromises()
+  expect(fetchApplicationDevices).not.toHaveBeenCalled()
+  expect(readDraft).not.toHaveBeenCalled()
+})

@@ -21,10 +21,13 @@ export class PreviewSession<Input, Output> {
       }
     }, 300)
   }
-  close(): void {
-    this.closed = true
+  invalidate(): void {
     ++this.generation
     clearTimeout(this.timer)
     this.controller?.abort()
+  }
+  close(): void {
+    this.closed = true
+    this.invalidate()
   }
 }

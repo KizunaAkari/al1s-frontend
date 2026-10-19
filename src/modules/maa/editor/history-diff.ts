@@ -1,3 +1,4 @@
+import { millisecondsToSeconds } from '../../../shared/time-units'
 import type { ScriptDocument, WorkflowStep } from '../../../shared/api/maa-script-editor'
 import { sameDocument } from './document-equality'
 
@@ -26,7 +27,7 @@ function value(value: unknown, key?: string): string {
   if (key === 'execution_mode') return historyExecutionMode(value)
   if (key === 'recognition_mode') return value === 'text' ? '文字识别' : '图片识别'
   if (typeof value === 'number' && (key?.endsWith('_seconds') || key === 'seconds')) return `${value} 秒`
-  if (typeof value === 'number' && key?.endsWith('_ms')) return `${value} 毫秒`
+  if (typeof value === 'number' && key?.endsWith('_ms')) return `${millisecondsToSeconds(value)} 秒`
   if (typeof value === 'string' && value.startsWith('data:image/')) return '图片内容'
   return String(value).slice(0, 80)
 }

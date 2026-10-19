@@ -185,3 +185,28 @@ it('bounds automatic retries, ignores retired callbacks, and retries immediately
  expect(post).toHaveBeenCalledOnce();expect(remove).not.toHaveBeenCalled()
  wrapper.unmount()
 })
+
+it('shows a concise connection error and preserves complete technical details',async()=>{
+ const {post}=setup()
+ const original='The selected device has no available editor provider. '+ 'diagnostic-'.repeat(24)
+ post.mockRejectedValueOnce(new ApiError(original,{code:'editor_capability_unavailable',status:409,requestId:'request-for-preview'}))
+ const wrapper=panel();await flushPromises()
+ expect(wrapper.get('el-alert-stub').attributes('title')).toBe('预览暂不可用')
+ expect(wrapper.get('.preview-technical-details').text()).toContain(original)
+ expect(wrapper.get('.preview-technical-details').text()).toContain('editor_capability_unavailable')
+ expect(wrapper.get('.preview-technical-details').text()).toContain('409')
+ expect(wrapper.get('.preview-technical-details').text()).toContain('request-for-preview')
+ expect(wrapper.get('.video-state').text()).toBe('未连接')
+ wrapper.unmount()
+})
+
+it('clears old technical details when retrying a failed connection',async()=>{
+ const {post}=setup()
+ post.mockRejectedValueOnce(new ApiError('old server message',{code:'editor_capability_unavailable',status:409}))
+ const wrapper=panel();await flushPromises()
+ expect(wrapper.find('.preview-technical-details').exists()).toBe(true)
+ await wrapper.findAll('button').find(button=>button.text()==='重试')!.trigger('click');await flushPromises()
+ expect(wrapper.find('.preview-technical-details').exists()).toBe(false)
+ expect(post).toHaveBeenCalledTimes(2)
+ wrapper.unmount()
+})

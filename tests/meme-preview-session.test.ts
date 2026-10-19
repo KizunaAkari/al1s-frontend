@@ -25,3 +25,20 @@ it('debounces preview for 300ms and discards late responses after a new draft or
   await vi.advanceTimersByTimeAsync(300)
   expect(render).toHaveBeenCalledTimes(2)
 })
+it('invalidates a pending preview when its platform changes and can render again', async () => {
+  vi.useFakeTimers()
+  let finish!: (value: string) => void
+  const apply = vi.fn()
+  const session = new PreviewSession<string, string>(input => input === 'qq'
+    ? new Promise(resolve => { finish = resolve }) : Promise.resolve('discord'), apply)
+  session.schedule('qq')
+  await vi.advanceTimersByTimeAsync(300)
+  session.invalidate()
+  finish('old-qq')
+  await Promise.resolve()
+  expect(apply).not.toHaveBeenCalled()
+  session.schedule('discord')
+  await vi.advanceTimersByTimeAsync(300)
+  expect(apply).toHaveBeenCalledWith('discord')
+  session.close()
+})

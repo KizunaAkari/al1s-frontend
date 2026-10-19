@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { millisecondsToSeconds, secondsToMilliseconds } from '../../../shared/time-units'
 import { computed } from 'vue'
 import { ElInputNumber, ElOption, ElSelect } from 'element-plus'
 import type { WorkflowStep } from '../../../shared/api/maa-script-editor'
@@ -97,9 +98,9 @@ function updateSwipe(key: SwipeField, value: unknown) {
         <ElInputNumber :model-value="swipeNumber('y2', 0)" :min="0" :max="8191" :step="1" :precision="0"
           aria-label="y2" @change="value => updateSwipe('y2', value)" />
       </label>
-      <label>滑动时长（毫秒）
-        <ElInputNumber :model-value="swipeNumber('duration_ms', 350)" :min="1" :max="60000" :step="1" :precision="0"
-          aria-label="滑动时长（毫秒）" @change="value => updateSwipe('duration_ms', value)" />
+      <label>滑动时长（秒）
+        <ElInputNumber :model-value="millisecondsToSeconds(swipeNumber('duration_ms', 350))" :min="0.001" :max="60" :step="0.1" :precision="3"
+          aria-label="滑动时长（秒）" @change="value => updateSwipe('duration_ms', secondsToMilliseconds(value))" />
       </label>
     </div>
 

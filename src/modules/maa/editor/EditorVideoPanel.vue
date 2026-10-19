@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ElAlert, ElButton, ElMessageBox } from 'element-plus'
-import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { closeEditorSession, createEditorSession, currentEditorSession, fetchEditorSession, type EditorSession } from '../../../shared/api/editor'
 import { connectPhoneVideo } from './video-connection'
 import { connectPhoneControl, keyPacket, touchPacket } from './control-connection'
@@ -8,6 +8,7 @@ import { Back, House } from '@element-plus/icons-vue'
 import { ApiError } from '../../../shared/api/client'
 import { videoPoint } from './video-coordinates'
 import { ControlConfirmation, isTransientConfirmationFailure } from './control-confirmation'
+import { previewFailure } from './preview-presentation'
 
 const props = defineProps<{ deviceId: string }>()
 const emit = defineEmits<{ geometry:[width:number,height:number]; screenshotUrl:[url:string|undefined] }>()
@@ -16,11 +17,22 @@ const session = ref<EditorSession>()
 const occupied = ref<EditorSession>()
 const busy = ref(false)
 const error = ref('')
+const failureDetails = ref<ReturnType<typeof previewFailure>>()
 const watching = ref(false)
 const controlling = ref(false)
 const platformReady = ref(false)
 let controlRetryAt = 0
 const frameSize = ref({ width:0, height:0 })
+const videoState = computed(() => {
+  if (closing.value) return '正在关闭会话'
+  if (videoFailed.value) return '画面已断开'
+  if (frameSize.value.width) return `${frameSize.value.width} × ${frameSize.value.height}`
+  if (busy.value) return '正在申请画面…'
+  if (error.value) return '未连接'
+  if (session.value?.status === 'closed') return '会话已关闭'
+  if (session.value?.status === 'expired') return '会话已过期'
+  return session.value?.status === 'pending' ? '等待终端响应…' : '正在连接画面…'
+})
 function geometry(width:number,height:number) {
   if (frameSize.value.width === width && frameSize.value.height === height) return
   stopControl()
@@ -233,6 +245,7 @@ async function open(): Promise<void> {
   platformReady.value = false
   busy.value = true
   error.value = ''
+  failureDetails.value = undefined
   closing.value = false
   videoFailed.value = false
   recovering.value = 0
@@ -244,13 +257,11 @@ async function open(): Promise<void> {
     session.value = created
     await poll()
   } catch (failure) {
+    failureDetails.value = previewFailure(failure)
+    error.value = failureDetails.value.title
     if (failure instanceof ApiError && failure.code === 'editor_device_busy') {
-      error.value = '已有编辑会话占用这台手机，不是证书错误。可确认关闭旧编辑会话后重连；不会停止正式任务。'
       try { occupied.value = await currentEditorSession(props.deviceId) ?? undefined }
-      catch { error.value += ' 占用信息暂时无法读取，请稍后重试。' }
-    } else {
-      const detail = failure instanceof ApiError ? `（HTTP ${failure.status}，${failure.code}）` : ''
-      error.value = `创建会话失败${detail}。请重试核对原请求；不会重复创建。`
+      catch { failureDetails.value.description += ' 占用信息暂时无法读取，请稍后重试。' }
     }
   } finally { busy.value = false }
 }
@@ -264,7 +275,7 @@ async function close(preserveError = false): Promise<void> {
   stopLocal()
   if (!session.value) return
   busy.value = true
-  if (!preserveError) error.value = ''
+  if (!preserveError) { error.value = ''; failureDetails.value = undefined }
   try {
     session.value = await closeEditorSession(session.value.session_id)
     schedulePoll()
@@ -311,8 +322,13 @@ onBeforeUnmount(() => {
 
 <template>
   <section class="editor-video-panel">
-    <el-alert v-if="error" :title="error" type="warning" :closable="false" />
-    <p v-if="closing" role="status">正在等待终端关闭会话；确认前不会创建新会话。终端离线时请等待恢复连接。</p>
+    <div v-if="error" class="preview-notice">
+      <el-alert :title="error" :description="failureDetails?.description" type="warning" show-icon :closable="false" />
+      <details v-if="failureDetails?.details.length" class="preview-technical-details"><summary>技术详情</summary>
+        <dl><div v-for="item in failureDetails.details" :key="item.label"><dt>{{ item.label }}</dt><dd>{{ item.value }}</dd></div></dl>
+      </details>
+    </div>
+    <p v-if="closing" class="preview-closing" role="status">等待终端确认关闭；离线时需先恢复连接。</p>
     <div class="video-stage"><canvas ref="canvas" :class="{ controlling }" aria-label="手机实时画面"
       @pointerdown.prevent="touch($event, 0)" @pointermove="touch($event, 2)"
       @pointerup="touch($event, 1)" @pointercancel="touch($event, 1)" @lostpointercapture="touch($event, 1)" /></div>
@@ -324,20 +340,33 @@ onBeforeUnmount(() => {
         <el-button v-else-if="error || videoFailed || (session && ['closed','failed','expired'].includes(session.status))" :disabled="busy || closing" @click="session && !['closed','failed','expired'].includes(session.status) ? reconnectVideo() : open()">重试</el-button>
       </div>
       <div class="editor-video-meta">
-        <span v-if="watching" class="control-status" :class="{ controlling }" :title="controlling ? '可控制' : '只读：控制暂不可用，恢复后自动重连'">{{ controlling ? '可控制' : '只读：控制暂不可用，恢复后自动重连' }}</span>
-        <small class="video-state">{{ videoFailed ? '视频已断开' : frameSize.width ? frameSize.width + ' × ' + frameSize.height : busy ? '正在申请画面…' : '正在连接画面…' }}</small>
+        <span v-if="watching" class="control-status" :class="{ controlling }">{{ controlling ? '可控制' : '只读' }}</span>
+        <small class="video-state">{{ videoState }}</small>
+        <small v-if="watching && !controlling" class="control-guidance">控制暂不可用，恢复后自动重连</small>
       </div>
     </div>
   </section>
 </template>
 
 <style scoped>
-.editor-video-panel { display:flex; flex-direction:column; min-height:0; height:100%; overflow:hidden; }
-.editor-video-footer { display:flex; align-items:center; justify-content:space-between; gap:8px; flex:none; min-height:72px; padding:8px 12px; border-top:1px solid var(--border); }
-.editor-video-actions { display:flex; gap:8px; align-items:center; min-width:0; }
-.editor-video-actions .el-button { min-width:88px; height:38px; margin:0; padding:6px 10px; }
-.editor-video-meta { display:grid; gap:4px; justify-items:end; min-width:0; max-width:45%; }
-.control-status { display:block; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--muted); font-size:12px; }
+.editor-video-panel { display:flex; flex-direction:column; min-width:0; min-height:0; height:100%; }
+.preview-notice { flex:none; margin:10px 12px; min-width:0; }
+.preview-notice :deep(.el-alert) { align-items:flex-start; padding:10px 12px; }
+.preview-notice :deep(.el-alert__content) { min-width:0; }
+.preview-notice :deep(.el-alert__title), .preview-notice :deep(.el-alert__description) { font-size:13px; line-height:1.6; white-space:normal; overflow-wrap:anywhere; }
+.preview-technical-details { margin-top:8px; color:var(--muted); font-size:12px; line-height:1.6; }
+.preview-technical-details summary { cursor:pointer; width:fit-content; }
+.preview-technical-details dl { margin:8px 0 0; padding:10px; background:var(--surface-soft); border-radius:6px; }
+.preview-technical-details dl > div { display:grid; grid-template-columns:4.5em minmax(0,1fr); gap:10px; margin:4px 0; }
+.preview-technical-details dt { color:var(--muted); }
+.preview-technical-details dd { margin:0; color:var(--text); white-space:pre-wrap; overflow-wrap:anywhere; }
+.preview-closing { flex:none; margin:10px 12px; color:var(--muted); font-size:13px; line-height:1.6; }
+.editor-video-footer { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px 12px; flex:none; padding:10px 12px; border-top:1px solid var(--border); }
+.editor-video-actions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; min-width:0; }
+.editor-video-actions .el-button { min-width:64px; height:34px; margin:0; padding:6px 10px; }
+.editor-video-meta { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:4px 10px; min-width:0; margin-left:auto; }
+.control-status { display:block; max-width:100%; white-space:normal; color:var(--muted); font-size:12px; }
+.control-guidance { flex-basis:100%; color:var(--muted); font-size:12px; line-height:1.5; overflow-wrap:anywhere; }
 .control-status::before { content:''; display:inline-block; width:8px; height:8px; margin-right:6px; border-radius:50%; background:var(--el-color-warning); }
 .control-status.controlling::before { background:var(--el-color-success); }
 .video-state { color:var(--muted); font-size:11px; }

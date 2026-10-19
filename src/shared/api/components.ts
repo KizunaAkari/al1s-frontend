@@ -1,13 +1,15 @@
 import { apiClient } from './client'
 
-export type UpgradeUnit = 'platform' | 'postgresql' | 's3' | 'mqtt' | 'linux-terminal'
+export type UpgradeUnit = 'platform' | 'postgresql' | 's3' | 'mqtt' | 'linux-terminal' | 'qq-bot' | 'discord-bot'
 export type ComponentKey = UpgradeUnit | 'maa'
 export type ComponentTarget = { kind: 'platform'; terminal_id?: null } | { kind: 'terminal'; terminal_id: string }
+  | { kind: 'bot'; bot_alias: 'qq' | 'discord'; terminal_id?: null }
 export type InventoryEntry = {
   component: ComponentKey; upgrade_unit: UpgradeUnit; target: ComponentTarget; display_name: string
   version: string | null; architecture: string | null; status: 'healthy' | 'offline' | 'unhealthy' | 'unknown'
   observed_at: string | null; image: string | null; image_id: string | null; source_identity: string | null
-  reason: string | null
+  reason: string | null; runtime_version?: string | null
+  qq_protocol_mode?: 'direct' | 'pmhq'; qq_client_version?: string | null; pmhq_version?: string | null
 }
 export type ComponentReleaseInput = {
   release_id: string; component: UpgradeUnit; version: string; architecture: 'amd64' | 'arm64'
@@ -15,7 +17,11 @@ export type ComponentReleaseInput = {
   native_version: string; compatible_from: string; data_policy: 'same-format' | 'alembic'
   schema_from?: string | null; schema_to?: string | null; maa_version?: string | null
 }
-export type ComponentRelease = ComponentReleaseInput & {
+export type ComponentRelease = Omit<ComponentReleaseInput, 'size_bytes' | 'sha256' | 'candidate_image' | 'expected_image_id'> & {
+  size_bytes: number | null; sha256: string | null; candidate_image: string | null; expected_image_id: string | null
+  source_kind?: 'archive' | 'registry'; runtime_version?: string | null
+  registry_digest?: string | null; platform_manifest_digest?: string | null; runtime_artifact_digest?: string | null
+  source_url?: string | null; source_published_at?: string | null; source_notes?: string | null
   state: 'draft' | 'queued' | 'verifying' | 'published' | 'failed'; row_version: number
   blob_id: string | null; created_at: string; published_at: string | null; error_code: string | null
 }
@@ -37,9 +43,13 @@ export type Page<T> = { items: T[]; next_cursor: string | null }
 
 export function componentLabel(component: ComponentKey) {
   return ({ platform: '平台应用', postgresql: 'PostgreSQL', s3: 'SeaweedFS / S3', mqtt: 'MQTT',
-    'linux-terminal': 'Linux 终端', maa: 'MaaFramework' })[component]
+    'linux-terminal': 'Linux 终端', maa: 'MaaFramework', 'qq-bot': 'QQ Bot', 'discord-bot': 'Discord Bot' })[component]
 }
 export function targetKey(target: ComponentTarget) {
+  if (target.kind === 'bot') {
+    if (!['qq', 'discord'].includes(target.bot_alias)) throw new Error('未知Bot目标')
+    return 'bot:' + target.bot_alias
+  }
   if (target.kind === 'terminal') {
     if (!target.terminal_id?.trim()) throw new Error('请先选择有效终端')
     return 'terminal:' + target.terminal_id
@@ -71,8 +81,8 @@ export const componentApi = {
     targetKey(body.target)
     return (await apiClient.post<ComponentOperation>('/components/upgrades', body)).data
   },
-  async operations(cursor?: string) {
-    return (await apiClient.get<Page<ComponentOperation>>('/components/operations', { params: { cursor, limit: 25 } })).data
+  async operations(cursor?: string, bot_alias?: 'qq' | 'discord') {
+    return (await apiClient.get<Page<ComponentOperation>>('/components/operations', { params: { cursor, limit: 25, bot_alias } })).data
   },
   async operation(id: string) {
     return (await apiClient.get<ComponentOperation>(`/components/operations/${id}`)).data

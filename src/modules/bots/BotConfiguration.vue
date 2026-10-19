@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import HelpHint from '../../shared/ui/HelpHint.vue'
 import MemeConnectionSettings from './memes/MemeConnectionSettings.vue'
-import { computed, reactive, ref, watch } from 'vue'
+import MemeRateLimits from './memes/MemeRateLimits.vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { ElAlert, ElButton, ElInput, ElOption, ElSelect } from 'element-plus'
 import { botGrant, createBot, fetchBotConfigVersion, probeGateway, resolveDiscordApplicationId, saveBotConfig, type BotService } from '../../shared/api/bots'
 
-const props = defineProps<{ kind: 'qq' | 'discord'; services: BotService[] }>()
-const emit = defineEmits<{ changed: []; selected: [serviceId: string | null] }>()
+const props = defineProps<{ kind: 'qq' | 'discord'; services: BotService[]; consoleMode?: boolean }>()
+const emit = defineEmits<{ changed: []; selected: [serviceId: string | null]; created: [service: BotService] }>()
 const kindValue = computed(() => props.kind === 'qq' ? 'onebot_gateway' : 'discord_bridge')
 const available = computed(() => props.services.filter(item => item.kind === kindValue.value))
 const selectedId = ref('')
@@ -56,6 +57,7 @@ watch(available, rows => {
 watch(selectedId, async id => {
   const request = ++versionRequest
   resetFields()
+  loadingVersion.value = false
   const service = available.value.find(item => item.service_id === id)
   if (!service?.desired_config_version_id) return
   loadingVersion.value = true
@@ -143,10 +145,13 @@ async function run(action: () => Promise<void>) {
 async function create() {
   const trimmed = name.value.trim()
   if (!trimmed) throw new Error('请填写连接名称')
+  const kind = props.kind
   const result = await createBot(kindValue.value, trimmed, createKey)
+  if (kind !== props.kind) return
   creating.value = false
   selectedId.value = result.service_id
   name.value = ''
+  emit('created', result)
   emit('changed')
   notice.value = '连接已创建，请填写平台连接配置。'
 }
@@ -190,15 +195,22 @@ async function registration() {
   grant.value = result.registration_code
   notice.value = `一次性注册码有效至 ${result.expires_at}。请只在受控部署入口中使用。`
 }
+function selectService(id: string) {
+  if (busy.value || !available.value.some(item => item.service_id === id)) return
+  creating.value = false; selectedId.value = id
+}
+function startCreate() { if (!busy.value) creating.value = true }
+onBeforeUnmount(() => { versionRequest++ })
+defineExpose({ selectService, startCreate, busy: computed(() => busy.value || loadingVersion.value || resolvingApplication.value) })
 </script>
 
 <template>
   <section class="bot-card bot-config">
-    <div class="bot-card-heading"><h2>连接配置 </h2><span class="bot-pill">{{ available.length ? `${available.length} 个连接` : '暂无连接' }}</span></div>
+    <div v-if="!consoleMode" class="bot-card-heading"><h2>连接配置 </h2><span class="bot-pill">{{ available.length ? `${available.length} 个连接` : '暂无连接' }}</span></div>
     
     <el-alert v-if="error" :title="error" type="error" :closable="false" show-icon />
     <el-alert v-if="notice" :title="notice" type="info" :closable="false" show-icon />
-    <div v-if="available.length && !creating" class="bot-field">
+    <div v-if="available.length && !creating && !consoleMode" class="bot-field">
       <label for="bot-service">已有连接</label>
       <div class="bot-inline"><el-select id="bot-service" v-model="selectedId" placeholder="选择连接" class="bot-fill"><el-option v-for="service in available" :key="service.service_id" :label="service.name" :value="service.service_id" /></el-select><el-button @click="creating = true">新建</el-button></div>
     </div>
@@ -218,8 +230,9 @@ async function registration() {
       </div>
       <div class="bot-actions"><el-button type="primary" :loading="busy" :disabled="loadingVersion" @click="run(save)">保存配置</el-button><el-button v-if="kind === 'qq'" :loading="busy" :disabled="!current.desired_config_version_id" @click="run(probe)">验证连接</el-button><el-button v-else :loading="busy" @click="run(registration)">生成注册码</el-button></div>
       <div v-if="grant" class="bot-grant"><el-input :model-value="grant" readonly type="password" show-password /><el-button @click="grant = ''">隐藏</el-button></div>
-      <MemeConnectionSettings :key="current.service_id" :service-id="current.service_id" :kind="kind" />
+      <MemeConnectionSettings v-if="!consoleMode" :key="current.service_id" :service-id="current.service_id" :kind="kind" />
       
     </template>
+    <MemeRateLimits v-if="!consoleMode" :key="kind" :platform="kind" />
   </section>
 </template>

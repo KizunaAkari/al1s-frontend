@@ -21,17 +21,24 @@ const configurationStub = defineComponent({
   </section>`,
 })
 const containersStub = defineComponent({
-  props: { alias: { type: String, required: true }, serviceId: { type: String, default: null } },
+  props: { alias: { type: String, required: true }, serviceId: { type: String, default: null }, showOnline: { type: Boolean, default: true } },
   template: `<section data-test="containers" :data-service-id="serviceId ?? ''">
-    <div v-if="serviceId" data-test="online-status">在线监测：{{ serviceId }}</div>
-    <div v-else data-test="online-empty">请选择连接</div>
+    <div v-if="serviceId && showOnline" data-test="online-status">在线监测：{{ serviceId }}</div>
+    <div v-else-if="showOnline" data-test="online-empty">请选择连接</div>
   </section>`,
+})
+
+const statusStub = defineComponent({
+  props: { serviceId: { type: String, default: null } },
+  template: `<section data-test="status-banner" :data-service-id="serviceId ?? ''"><div v-if="serviceId" data-test="online-status">在线监测：{{ serviceId }}</div><div v-else data-test="online-empty">请选择连接</div></section>`,
 })
 
 const global = {
   directives: { loading: { mounted() {} } },
   stubs: {
     BotConfiguration: configurationStub,
+    BotStatusBar: statusStub,
+    BotInteractionSettings: true,
     BotContainers: containersStub,
     BotBrandIcon: { template: '<span />' },
     HelpHint: { template: '<span />' },
@@ -57,11 +64,12 @@ beforeEach(() => {
 })
 afterEach(() => { wrapper?.unmount(); wrapper = undefined; vi.clearAllMocks() })
 
-it('keeps online monitoring only in the right container and follows selection, create mode, and tab changes', async () => {
+it('keeps online monitoring only in the top status banner and follows selection, create mode, and tab changes', async () => {
   wrapper = mount(BotManagement, { global })
   await flushPromises()
   const configuration = wrapper.get('[data-test="configuration"]')
-  const containers = wrapper.get('[data-test="containers"]')
+  const containers = wrapper.get('[data-test="status-banner"]')
+  expect(wrapper.get('[data-test="containers"]').find('[data-test="online-status"]').exists()).toBe(false)
 
   expect(configuration.find('[data-test="online-status"]').exists()).toBe(false)
   expect(containers.find('[data-test="online-empty"]').exists()).toBe(true)

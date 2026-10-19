@@ -7,7 +7,8 @@ import { avatarSlot, defaultLayout, normalizeSlot, textSlot } from './layout'
 import { PreviewSession } from './preview-session'
 import sampleAvatar from '../../../assets/bot-discord.png'
 
-const props = defineProps<{ template: MemeRecord | null; locked?: boolean }>()
+const props = defineProps<{ template: MemeRecord | null; locked?: boolean; platform?: 'qq' | 'discord' }>()
+const backend = () => props.platform ? api.createMemeApi(props.platform) : api
 const emit = defineEmits<{ saved: [value: MemeRecord]; close: [] }>()
 const draft = ref<MemeTemplate>({ name: '新模板', keyword: '新模板', aliases: [], enabled: true,
   random_enabled: true, layout: defaultLayout(), background_blob_id: null, foreground_blob_id: null })
@@ -20,7 +21,7 @@ const background = ref(''), foreground = ref(''), resultUrl = ref('')
 const error = ref(''), previewError = ref(''), notice = ref('')
 const busy = ref(false), uploading = ref(false), previewBusy = ref(false)
 const controlsLocked = computed(() => busy.value || props.locked)
-let identity = '', expected = 0, initial = '', destroyed = false, assetGeneration = 0
+let identity = '', expected = 0, initial = '', destroyed = false, assetGeneration = 0, contextGeneration = 0
 let pendingSave: { body: string; key: string } | undefined
 let samplePromise: Promise<string> | undefined
 const inputGeneration = { avatars: 0, image: 0 }
@@ -67,11 +68,13 @@ async function sample(): Promise<string> {
   return samplePromise
 }
 const session = new PreviewSession<PreviewInput, Blob>(async (input, signal) => {
+  const client = backend()
   const example = await sample()
+  if (signal.aborted) throw new DOMException('预览已取消', 'AbortError')
   const count = input.template.layout.engine === 'petpet' ? 1 : input.template.layout.avatars.length
   if (!input.avatars.length) input.avatars = Array.from({ length: count }, () => example)
   if (!input.images.length && input.template.layout.engine === 'caption') input.images = [example]
-  return api.preview(input, signal)
+  return client.preview(input, signal)
 }, blob => { replaceUrl(resultUrl, blob); previewBusy.value = false; previewError.value = '' }, cause => {
   previewBusy.value = false
   previewError.value = cause instanceof Error ? cause.message : '预览失败，请检查图片与文字后重试'
@@ -84,10 +87,11 @@ function refreshPreview() {
 }
 async function loadPictures() {
   const generation = ++assetGeneration
+  const client = backend()
   for (const [id, target] of [[draft.value.background_blob_id, background], [draft.value.foreground_blob_id, foreground]] as const) {
     if (!id) { replaceUrl(target); continue }
     try {
-      const body = await api.readAsset(id)
+      const body = await client.readAsset(id)
       if (!destroyed && generation === assetGeneration) replaceUrl(target, body)
     } catch { if (!destroyed && generation === assetGeneration) error.value = '素材读取失败，请重试或重新上传' }
   }
@@ -104,6 +108,11 @@ watch(() => props.template, value => {
 }, { immediate: true })
 watch(draft, refreshPreview, { deep: true, immediate: true })
 watch([testAvatars, testImage, demoTexts], refreshPreview)
+watch(() => props.platform, () => {
+  contextGeneration++; busy.value = false; uploading.value = false
+  session.invalidate(); assetGeneration++; replaceUrl(resultUrl)
+  void loadPictures(); refreshPreview()
+})
 watch(aliases, value => { draft.value.aliases = value.split(/[\s,，]+/).map(word => word.trim()).filter(Boolean) })
 
 async function upload(event: Event, role: 'background' | 'foreground') {
@@ -116,7 +125,7 @@ async function upload(event: Event, role: 'background' | 'foreground') {
   const generation = ++assetGeneration
   uploading.value = true; error.value = ''
   try {
-    const saved = await api.uploadAsset(file)
+    const saved = await backend().uploadAsset(file)
     if (destroyed || generation !== assetGeneration) return
     if (role === 'background') {
       draft.value.background_blob_id = saved.blob_id
@@ -171,12 +180,13 @@ async function save() {
   const body = api.templateBody(draft.value), fingerprint = JSON.stringify(body)
   if (!body.name.trim() || !body.keyword.trim()) { error.value = '请填写模板名称和关键词'; return }
   if (!pendingSave || pendingSave.body !== fingerprint) pendingSave = { body: fingerprint, key: crypto.randomUUID() }
+  const context = contextGeneration
   busy.value = true
   try {
-    const result = await api.saveTemplate(identity, body, expected, pendingSave.key)
-    if (!destroyed) { initial = fingerprint; notice.value = '模板已保存'; emit('saved', result) }
-  } catch (cause) { if (!destroyed) error.value = cause instanceof Error ? cause.message : '保存失败，请核对后重试' }
-  finally { if (!destroyed) busy.value = false }
+    const result = await backend().saveTemplate(identity, body, expected, pendingSave.key)
+    if (!destroyed && context === contextGeneration) { initial = fingerprint; notice.value = '模板已保存'; emit('saved', result) }
+  } catch (cause) { if (!destroyed && context === contextGeneration) error.value = cause instanceof Error ? cause.message : '保存失败，请核对后重试' }
+  finally { if (!destroyed && context === contextGeneration) busy.value = false }
 }
 onBeforeUnmount(() => {
   ++inputGeneration.avatars; ++inputGeneration.image

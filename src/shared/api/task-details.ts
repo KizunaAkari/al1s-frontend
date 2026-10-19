@@ -35,9 +35,9 @@ export type AttemptDetail = {
   recognition_failures?: Array<QuickTestFailureDetail & { module_number: number }>
   failure_contexts?: TaskFailureContext[]
 }
-export async function fetchTaskDetails(task: string, cursor: string | null = null) {
+export async function fetchTaskDetails(task: string, cursor: string | null = null, executionId?: string) {
   return (await apiClient.get<{ items: AttemptDetail[]; next_cursor: string | null; lineup_record_id?: string | null; source_module?: string | null }>(
-    `/tasks/${task}/details`, { params: { cursor: cursor ?? undefined } },
+    `/tasks/${task}/details`, { params: { cursor: cursor ?? undefined, ...(executionId ? { execution_id: executionId } : {}) } },
   )).data
 }
 export async function downloadFailureScreenshot(task: string, attempt: string, artifact: string) {

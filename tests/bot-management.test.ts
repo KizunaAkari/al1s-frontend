@@ -18,7 +18,7 @@ const service: BotService = {
 const mounted: { unmount: () => void }[] = []
 function view(services: BotService[], kind: 'qq' | 'discord' = 'qq') {
   const wrapper = mount(BotConfiguration, {
-    props: { kind, services }, global: { directives: { loading: { mounted() {} } } },
+    props: { kind, services }, global: { directives: { loading: { mounted() {} } }, stubs: { MemeRateLimits: true } },
   })
   mounted.push(wrapper)
   return wrapper

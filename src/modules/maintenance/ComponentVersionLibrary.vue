@@ -44,7 +44,7 @@ onBeforeUnmount(() => { disposed = true; generation++; clearTimeout(timer); cont
 </script>
 <template>
  <section class="versions">
-  <header><h2>版本库</h2><ElSelect v-model="unit" :disabled="busy" aria-label="组件版本库分类"><ElOption v-for="id in (['platform','linux-terminal','postgresql','s3','mqtt'] as const)" :key="id" :value="id" :label="componentLabel(id)" /></ElSelect><ElButton @click="refresh()">刷新</ElButton></header>
+  <header><h2>版本库</h2><ElSelect v-model="unit" :disabled="busy" aria-label="组件版本库分类"><ElOption v-for="id in (['platform','linux-terminal','postgresql','s3','mqtt','discord-bot'] as const)" :key="id" :value="id" :label="componentLabel(id)" /></ElSelect><ElButton @click="refresh()">刷新</ElButton></header>
   <ElAlert v-if="error" :title="error" type="error" :closable="false" /><ElAlert v-if="notice" :title="notice" type="success" :closable="false" />
   <details class="upload-panel"><summary>上传新版本包</summary>
    <div class="upload-grid">

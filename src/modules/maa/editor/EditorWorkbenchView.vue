@@ -6,24 +6,82 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useRouter } from 'vue-router'
 import { createScriptFromForeground, fetchEditorDrafts, fetchForegroundPackage } from '../../../shared/api/maa-script-editor'
-import type { MaaScript } from '../../../shared/api/maa'
+import { fetchScript, type MaaScript } from '../../../shared/api/maa'
+import { fetchApplicationDevices } from '../../../shared/api/maa-applicability'
 import { normalizeApiError } from '../../../shared/api/client'
 import { useCursorPage } from '../../../shared/api/pagination'
 import { fetchTargetDevice, fetchTargetDevices, type TargetDevice } from '../../../shared/api/terminals'
 import { phoneAvailability } from '../../../shared/presentation/phone-availability'
+import { phonePreviewGuidance } from './preview-presentation'
 import EditorVideoPanel from './EditorVideoPanel.vue'
 import FloatingPhonePanel from './FloatingPhonePanel.vue'
 import ScriptWorkflowPanel from './ScriptWorkflowPanel.vue'
-import { readEditorResume, writeEditorResume } from './editor-resume'
+import { clearEditorResume, readEditorResume, writeEditorResume } from './editor-resume'
 const route=useRoute()
 const router=useRouter()
 const libraryOpen=ref(route.query.library==='1')
 watch(()=>route.query.library,v=>{if(v==='1')libraryOpen.value=true})
-watch(()=>route.query.script_id,()=>{libraryOpen.value=false;phoneDocked.value=false;phoneHidden.value=false})
+watch(()=>route.query.script_id,()=>{libraryOpen.value=false;phoneDocked.value=false;phoneHidden.value=false;resumeNotice.value=''})
 const devices=useCursorPage<TargetDevice,string>(fetchTargetDevices,d=>d.device_id)
 const selected=ref<string>()
 const resumedStep=ref(1)
+const resumeNotice=ref('')
+let contextGeneration=0
 const device=computed(()=>devices.items.value.find(d=>d.device_id===selected.value))
+async function selectPhone(id?: string) {
+  if (id === selected.value || (!id && !selected.value)) return
+  const generation = ++contextGeneration
+  if (selected.value && typeof route.query.script_id === 'string') {
+    const query = { ...route.query }
+    delete query.script_id
+    delete query.step
+    const failure = await router.replace({ path: '/editor', query })
+    if (failure || generation !== contextGeneration) return
+  }
+  selected.value = id || undefined
+  resumedStep.value = 1
+  resumeNotice.value = ''
+  if (id) writeEditorResume({ deviceId: id, step: 1 })
+  else clearEditorResume()
+}
+
+async function restoreWorkspace() {
+  const resume = readEditorResume()
+  const generation = ++contextGeneration
+  const initialRoute = route.fullPath
+  const current = () => generation === contextGeneration && route.fullPath === initialRoute
+  await devices.load(true)
+  if (!current() || !resume?.deviceId) return
+  const explicitScript = typeof route.query.script_id === 'string'
+  if (explicitScript && resume.scriptId && resume.scriptId !== route.query.script_id) return
+  if (!devices.items.value.some(item => item.device_id === resume.deviceId)) {
+    try {
+      const restoredPhone = await fetchTargetDevice(resume.deviceId)
+      if (!current()) return
+      devices.items.value = [...devices.items.value, restoredPhone]
+    } catch {
+      if (current()) resumeNotice.value = '未恢复上次手机，请重新选择手机；本地草稿仍保留。'
+      return
+    }
+  }
+  if (!current()) return
+  selected.value = resume.deviceId
+  resumedStep.value = resume.step
+  if (explicitScript || !resume.scriptId) return
+  try {
+    const script = await fetchScript(resume.scriptId)
+    if (!current()) return
+    const bindings = await fetchApplicationDevices(script.application_id)
+    if (!current()) return
+    if (!bindings.some(item => item.device_id === resume.deviceId)) {
+      resumeNotice.value = `未恢复上次脚本“${script.name}”：它不适用于当前手机，请从脚本库选择脚本。`
+      return
+    }
+    await router.replace({ path: '/editor', query: { script_id: resume.scriptId, step: String(resume.step) } })
+  } catch {
+    if (current()) resumeNotice.value = '未恢复上次脚本：读取脚本或分类适用范围失败，请从脚本库重新选择；本地草稿仍保留。'
+  }
+}
 let phoneTimer: ReturnType<typeof setInterval> | undefined
 async function refreshSelectedPhone() {
   const id = selected.value
@@ -104,23 +162,10 @@ watch([() => route.query.script_id, selected], ([scriptId, deviceId]) => {
 watch(()=>device.value?.availability, value=>{if(value==='disconnected'||value==='unauthorized'){connected.value=false;screenshotUrl.value=undefined}})
 function geometry(w:number,h:number){connected.value=!!(w&&h);if(w&&h)landscape.value=w>h}
 onMounted(()=>{
-  void (async () => {
-    const resume = readEditorResume()
-    await devices.load(true)
-    if (typeof route.query.script_id !== 'string' && resume?.scriptId) {
-      await router.replace({ path: '/editor', query: { script_id: resume.scriptId, step: String(resume.step) } })
-    }
-    if (resume && resume.scriptId === route.query.script_id && resume.deviceId) {
-      resumedStep.value = resume.step
-      if (!devices.items.value.some(item => item.device_id === resume.deviceId)) {
-        try { devices.items.value = [...devices.items.value, await fetchTargetDevice(resume.deviceId)] } catch { /* The phone may have been removed. */ }
-      }
-      if (devices.items.value.some(item => item.device_id === resume.deviceId)) selected.value = resume.deviceId
-    }
-  })()
+  void restoreWorkspace()
   phoneTimer=setInterval(()=>{if(document.visibilityState==='visible')void refreshSelectedPhone()},10000)
 })
-onBeforeUnmount(()=>{clearInterval(phoneTimer);draftGeneration++;draftController?.abort()})
+onBeforeUnmount(()=>{contextGeneration++;clearInterval(phoneTimer);draftGeneration++;draftController?.abort()})
 </script>
 <template>
 <div class="maa-studio">
@@ -144,6 +189,7 @@ onBeforeUnmount(()=>{clearInterval(phoneTimer);draftGeneration++;draftController
     </div>
   </Teleport>
   <p v-if="draftError || createError" class="studio-notice" role="alert">{{ draftError ? `草稿列表读取失败：${draftError}` : createError }}</p>
+  <p v-if="resumeNotice" class="studio-resume-notice" role="status">{{ resumeNotice }}</p>
   <ElDrawer v-model="libraryOpen" direction="ltr" size="100vw" class="maa-library-drawer" :with-header="false"
     :close-on-click-modal="false" :close-on-press-escape="false" :destroy-on-close="true">
     <MaaLibraryPanel @opened="libraryOpen=false" @close="libraryOpen=false" />
@@ -156,11 +202,14 @@ onBeforeUnmount(()=>{clearInterval(phoneTimer);draftGeneration++;draftController
     </div>
     <FloatingPhonePanel v-show="!phoneHidden" :landscape="landscape" :connected="connected" :docked="phoneDocked">
       <div class="phone-content" :class="{'phone-disconnected':!connected}">
-        <div class="phone-device-select"><ElSelect v-model="selected" placeholder="选择挂载手机" aria-label="选择手机" clearable :teleported="false">
-          <ElOption v-for="d in devices.items.value" :key="d.device_id" :value="d.device_id" :label="`${d.display_name}（${phoneAvailability(d).label}）`" :disabled="d.mode==='unassigned' || !d.managing_terminal_id" />
-        </ElSelect><span v-if="device" class="phone-availability" :class="{ connected: device.availability === 'connected' }" title="手机连接状态">{{ phoneAvailability(device).label }}</span><ElButton :icon="Refresh" aria-label="刷新设备" title="刷新设备" :loading="devices.loading.value" @click="devices.load(true)" /><ElButton v-if="devices.nextCursor.value" @click="devices.load()">更多</ElButton></div>
+        <div class="phone-device-select"><ElSelect :model-value="selected" placeholder="选择挂载手机" aria-label="选择手机" clearable :teleported="false" @update:model-value="selectPhone">
+          <ElOption v-for="d in devices.items.value" :key="d.device_id" :value="d.device_id" :label="d.display_name" :disabled="d.mode==='unassigned' || !d.managing_terminal_id"><span>{{ d.display_name }}</span><small class="phone-option-status">{{ phoneAvailability(d).label }}</small></ElOption>
+        </ElSelect><ElButton :icon="Refresh" aria-label="刷新设备" title="刷新设备" :loading="devices.loading.value" @click="devices.load(true)" /><ElButton v-if="devices.nextCursor.value" class="phone-more" @click="devices.load()">更多</ElButton></div>
         <p v-if="devices.error.value" role="alert">{{ devices.error.value.message }}</p>
-        <p v-if="device && device.availability !== 'connected'">{{ phoneAvailability(device).label }}：{{ phoneAvailability(device).guidance }} 已保存脚本仍可编辑。</p>
+        <div v-if="device" class="phone-status-card">
+          <div class="phone-status-heading"><span class="phone-availability" :class="{ connected: device.availability === 'connected' }" title="手机连接状态">{{ phoneAvailability(device).label }}</span><small v-if="device.availability !== 'connected'" class="phone-edit-hint">脚本仍可编辑</small></div>
+          <p v-if="device.availability !== 'connected'" class="phone-guidance">{{ phonePreviewGuidance(device) }}</p>
+        </div>
         <EditorVideoPanel v-if="selected && device?.availability !== 'disconnected' && device?.availability !== 'unauthorized'" :key="selected" :device-id="selected" @geometry="geometry" @screenshot-url="screenshotUrl=$event" />
         <p v-else>请选择手机</p>
       </div>
@@ -182,20 +231,28 @@ onBeforeUnmount(()=>{clearInterval(phoneTimer);draftGeneration++;draftController
 .studio-actions :deep(.el-button + .el-button) { margin-left:0; }
 .draft-picker { width:138px; flex:none; }
 .studio-notice { margin:0; padding:6px 16px; color:var(--el-color-danger); font-size:12px; }
+.studio-resume-notice { margin:0; padding:6px 16px; color:var(--muted); font-size:12px; }
 .studio-panels { position:relative; display:flex; flex:1; min-height:0; width:100%; }
 .studio-workflow { flex:1; min-height:0; min-width:0; overflow:hidden; }
 .studio-empty { padding:30px; color:var(--muted); }
 .studio-statusbar { display:flex; align-items:center; gap:14px; flex:none; height:36px; padding:0 14px; border-top:1px solid var(--border); background:var(--surface); }
 .studio-log-slot { flex:none; min-width:160px; max-height:inherit; }
 .studio-footer-slot { flex:1; min-width:0; overflow-x:auto; scrollbar-width:thin; color:var(--muted); font-size:12px; }
-.phone-content { display:flex; flex-direction:column; flex:1; min-width:0; min-height:0; overflow:visible; padding:0; }
-.phone-device-select { display:flex; align-items:center; gap:8px; flex:none; min-height:58px; padding:7px 12px; border-bottom:1px solid var(--border); }
+.phone-content { display:flex; flex-direction:column; flex:1; min-width:0; min-height:0; overflow:auto; padding:0; overscroll-behavior:contain; }
+.phone-device-select { display:grid; grid-template-columns:minmax(0,1fr) 38px; align-items:center; gap:8px; flex:none; min-height:58px; padding:7px 12px; border-bottom:1px solid var(--border); }
 .phone-device-select .el-select { min-width:0; flex:1; }
 .phone-device-select .el-button { flex:none; width:38px; height:38px; margin:0; padding:0; }
+.phone-device-select .phone-more { grid-column:1/-1; justify-self:start; width:auto; padding:0 10px; }
+.phone-option-status { float:right; margin-left:12px; color:var(--muted); }
+.phone-status-card { flex:none; padding:10px 12px; border-bottom:1px solid var(--border); }
+.phone-status-heading { display:flex; align-items:center; flex-wrap:wrap; gap:6px 12px; }
+.phone-edit-hint { margin-left:auto; color:var(--muted); font-size:12px; }
+.phone-guidance { margin:6px 0 0; color:var(--muted); font-size:13px; line-height:1.6; overflow-wrap:anywhere; }
 .phone-availability { flex:none; color:var(--muted); font-size:12px; white-space:nowrap; }
 .phone-availability::before { content:''; display:inline-block; width:8px; height:8px; margin-right:7px; border-radius:50%; background:var(--muted); }
 .phone-availability.connected::before { background:var(--el-color-success); }
-.phone-content :deep(.editor-video-panel) { flex:1; }
+.phone-content :deep(.editor-video-panel) { flex:1; min-height:240px; }
+.phone-disconnected :deep(.editor-video-panel) { flex:none; min-height:0; height:auto; }
 .phone-disconnected :deep(.video-stage) { display:none; }
 .pick-result { font-size:12px; color:var(--accent); margin:6px; }
 </style>

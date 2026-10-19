@@ -8,7 +8,7 @@ import ThemeMenu from '../shared/ui/ThemeMenu.vue'
 import BrandLogo from '../shared/ui/BrandLogo.vue'
 import './redesign.css'
 import { useThemeStore } from './theme'
-import { clearEditorResume, readEditorResume } from '../modules/maa/editor/editor-resume'
+import { clearEditorResume } from '../modules/maa/editor/editor-resume'
 const theme = useThemeStore()
 const route = useRoute()
 const editorRoute = computed(() => route.path === '/editor')
@@ -39,11 +39,6 @@ const navigation = [
   { to: '/notifications', label: '通知设置', icon: Bell },
   { to: '/bots', label: 'Bot 管理', icon: ChatDotRound },
 ]
-const editorDestination = computed(() => {
-  void route.fullPath
-  const resume = readEditorResume()
-  return resume ? { path: '/editor', query: { script_id: resume.scriptId, step: String(resume.step) } } : '/editor'
-})
 </script>
 <template>
   <RouterView v-if="route.path === '/login'" />
@@ -53,7 +48,7 @@ const editorDestination = computed(() => {
       <RouterLink class="brand" to="/" aria-label="AL-1S 系统概览" @click="menuOpen = false"><img v-if="compactNav" src="/favicon.svg" alt="AL-1S" class="compact-brand" /><BrandLogo v-else :light="theme.isDark" /></RouterLink>
       <button v-if="editorRoute" class="icon-button sidebar-expand" :aria-label="compactNav ? '展开导航' : '折叠导航'" @click="compactNav = !compactNav">{{ compactNav ? '›' : '‹' }}</button>
       <nav class="app-nav" aria-label="主导航">
-        <RouterLink v-for="item in navigation" :key="item.to" :to="item.to === '/editor' ? editorDestination : item.to" :title="item.label" :aria-label="item.label" @click="menuOpen = false">
+        <RouterLink v-for="item in navigation" :key="item.to" :to="item.to" :title="item.label" :aria-label="item.label" @click="menuOpen = false">
           <ElIcon><component :is="item.icon" /></ElIcon><span>{{ item.label }}</span>
         </RouterLink>
       </nav>

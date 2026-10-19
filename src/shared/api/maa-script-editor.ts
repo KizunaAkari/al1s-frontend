@@ -1,11 +1,11 @@
 import { apiClient } from './client'
-import { fetchApplication, type MaaScript } from './maa'
+import { fetchApplication, fetchScript, type MaaScript } from './maa'
 import { parseScriptDocument, type ScriptDocument } from './maa-script-contract'
 
 export type { CoreWorkflowAction, CoreWorkflowStep, ScriptDocument, WorkflowStep } from './maa-script-contract'
 
 export async function openScript(id: string) {
-  const script = (await apiClient.get<MaaScript>(`/maa/scripts/${id}`)).data
+  const script = await fetchScript(id)
   if (!script.current_version_id && script.candidate_version_id) {
     throw new Error('这是旧版候选脚本，尚未迁移到新编辑流程；请先完成旧数据迁移。')
   }
