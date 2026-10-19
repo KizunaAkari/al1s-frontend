@@ -14,13 +14,13 @@ const style=computed(()=>props.docked?{left:dockBounds.left+'px',top:dockBounds.
 function clamp(){
  if(!bounds.width||!bounds.height)return
  width.value=Math.min(bounds.width,Math.max(Math.min(300,bounds.width),width.value))
- height.value=Math.min(bounds.height,Math.max(Math.min(props.connected?300:180,bounds.height),height.value))
+ height.value=Math.min(bounds.height,Math.max(Math.min(props.connected?300:240,bounds.height),height.value))
  x.value=Math.max(0,Math.min(x.value,bounds.width-width.value))
  y.value=Math.max(0,Math.min(y.value,bounds.height-(open.value?height.value:50)))
 }
 function orient(){
  width.value=props.connected?(props.landscape?720:420):360
- height.value=props.connected?Math.min(props.landscape?470:760,Math.max(300,bounds.height-48)):240
+ height.value=props.connected?Math.min(props.landscape?470:760,Math.max(300,bounds.height-48)):360
  if(!moved){x.value=Math.max(0,bounds.width-width.value-24);y.value=24}
  clamp()
 }
@@ -105,6 +105,6 @@ onBeforeUnmount(()=>{observer?.disconnect();window.removeEventListener('resize',
 header{display:flex;align-items:center;gap:8px;flex-shrink:0;height:50px;box-sizing:border-box;padding:6px 12px;cursor:move;touch-action:none;background:var(--surface-soft);border-bottom:1px solid var(--border);border-radius:11px 11px 0 0;user-select:none}
 header strong{margin-right:auto;font-size:15px}.floating-grip{color:var(--muted);font-size:19px;line-height:1}
 header :deep(.el-button){width:36px;height:36px;margin:0;padding:0}
-.floating-body{display:flex;flex:1;min-height:0;overflow:visible}
+.floating-body{display:flex;flex:1;min-width:0;min-height:0;overflow:hidden;border-radius:0 0 11px 11px}
 .floating-resize{position:absolute;bottom:2px;right:3px;width:22px;height:22px;text-align:right;color:var(--accent);cursor:nwse-resize;touch-action:none}
 </style>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { millisecondsToSeconds, secondsToMilliseconds } from '../../shared/time-units'
 import { computed } from 'vue'
 import { ElButton, ElInputNumber, ElOption, ElSelect } from 'element-plus'
 import type { MaaScript } from '../../shared/api/maa'
@@ -6,7 +7,24 @@ import type { StrategyDefinition } from '../../shared/api/maa-strategies'
 const props = defineProps<{ modelValue: StrategyDefinition; scripts: MaaScript[]; applicationId: string }>()
 const emit = defineEmits<{ 'update:modelValue': [value: StrategyDefinition] }>()
 const available = computed(() => props.scripts.filter(s => s.application_id === props.applicationId && s.status === 'active' && s.current_version_id))
-function options(type: string) { return available.value.filter(s => s.script_type === type) }
+type ModuleType = Exclude<MaaScript['script_type'], 'standard'>
+type ScriptGroup = { items: MaaScript[]; ids: Set<string> }
+const groups = computed<Record<ModuleType, ScriptGroup>>(() => {
+  const grouped: Record<ModuleType, ScriptGroup> = {
+    module_start: { items: [], ids: new Set() },
+    module_process: { items: [], ids: new Set() },
+    module_end: { items: [], ids: new Set() },
+  }
+  for (const script of available.value) {
+    const type = script.script_type
+    if (type === 'standard') continue
+    grouped[type].items.push(script)
+    grouped[type].ids.add(script.script_id)
+  }
+  return grouped
+})
+function options(type: ModuleType) { return groups.value[type].items }
+function hasOption(type: ModuleType, id: string) { return groups.value[type].ids.has(id) }
 function change(patch: Partial<StrategyDefinition>) { emit('update:modelValue', { ...props.modelValue, ...patch }) }
 function process(index: number, field: 'script_id' | 'wait_after_ms', value: string | number) {
   change({ process_modules: props.modelValue.process_modules.map((m, i) => i === index ? { ...m, [field]: value } : m) })
@@ -22,14 +40,14 @@ function move(index: number, offset: number) {
 <template>
   <div class="definition-form">
     <label>开始脚本<ElSelect :model-value="modelValue.start_script_id" filterable @update:model-value="v => change({ start_script_id: v })">
-      <ElOption v-if="modelValue.start_script_id && !options('module_start').some(s => s.script_id === modelValue.start_script_id)" :value="modelValue.start_script_id" :label="`当前引用（未加载）：${modelValue.start_script_id}`" disabled />
+      <ElOption v-if="modelValue.start_script_id && !hasOption('module_start', modelValue.start_script_id)" :value="modelValue.start_script_id" :label="`当前引用（未加载）：${modelValue.start_script_id}`" disabled />
       <ElOption v-for="s in options('module_start')" :key="s.script_id" :value="s.script_id" :label="s.name" /></ElSelect></label>
-    <label>开始后等待（毫秒）<ElInputNumber :model-value="modelValue.start_wait_after_ms" :min="0" :max="14400000" :precision="0" @change="v => change({ start_wait_after_ms: v ?? 0 })" /></label>
+    <label>开始后等待（秒）<ElInputNumber :model-value="millisecondsToSeconds(modelValue.start_wait_after_ms)" :min="0" :max="14400" :precision="3" :step="0.1" @change="v => change({ start_wait_after_ms: secondsToMilliseconds(v) ?? 0 })" /></label>
     <section v-for="(module, i) in modelValue.process_modules" :key="i">
       <label>过程 {{ i + 1 }}<ElSelect :model-value="module.script_id" filterable @update:model-value="v => process(i, 'script_id', v)">
-        <ElOption v-if="module.script_id && !options('module_process').some(s => s.script_id === module.script_id)" :value="module.script_id" :label="`当前引用（未加载）：${module.script_id}`" disabled />
+        <ElOption v-if="module.script_id && !hasOption('module_process', module.script_id)" :value="module.script_id" :label="`当前引用（未加载）：${module.script_id}`" disabled />
         <ElOption v-for="s in options('module_process')" :key="s.script_id" :value="s.script_id" :label="s.name" /></ElSelect></label>
-      <label>过程后等待（毫秒）<ElInputNumber :model-value="module.wait_after_ms" :min="0" :max="14400000" :precision="0" @change="v => process(i, 'wait_after_ms', v ?? 0)" /></label>
+      <label>过程后等待（秒）<ElInputNumber :model-value="millisecondsToSeconds(module.wait_after_ms)" :min="0" :max="14400" :precision="3" :step="0.1" @change="v => process(i, 'wait_after_ms', secondsToMilliseconds(v) ?? 0)" /></label>
       <div class="process-actions">
       <ElButton :disabled="i === 0" @click="move(i, -1)">上移</ElButton>
       <ElButton :disabled="i === modelValue.process_modules.length - 1" @click="move(i, 1)">下移</ElButton>
@@ -38,7 +56,7 @@ function move(index: number, offset: number) {
     </section>
     <ElButton :disabled="modelValue.process_modules.length >= 1000" @click="change({ process_modules: [...modelValue.process_modules, { script_id: '', wait_after_ms: 0 }] })">添加过程</ElButton>
     <label>结束脚本<ElSelect :model-value="modelValue.end_script_id" filterable @update:model-value="v => change({ end_script_id: v })">
-      <ElOption v-if="modelValue.end_script_id && !options('module_end').some(s => s.script_id === modelValue.end_script_id)" :value="modelValue.end_script_id" :label="`当前引用（未加载）：${modelValue.end_script_id}`" disabled />
+      <ElOption v-if="modelValue.end_script_id && !hasOption('module_end', modelValue.end_script_id)" :value="modelValue.end_script_id" :label="`当前引用（未加载）：${modelValue.end_script_id}`" disabled />
       <ElOption v-for="s in options('module_end')" :key="s.script_id" :value="s.script_id" :label="s.name" /></ElSelect></label>
   </div>
 </template>

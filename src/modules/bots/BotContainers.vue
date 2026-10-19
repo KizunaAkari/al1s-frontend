@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ElButton, ElMessageBox } from 'element-plus'
 import { apiClient } from '../../shared/api/client'
 import BotOnlineStatus from './BotOnlineStatus.vue'
@@ -7,12 +7,15 @@ import BotOnlineStatus from './BotOnlineStatus.vue'
 type Alias = 'qq' | 'discord'
 type Action = 'start' | 'stop' | 'restart'
 type State = { running: boolean; status: string; health: string; revision: string; started_at: string | null }
-const props = defineProps<{ alias: Alias; serviceId?: string | null }>()
+const props = defineProps<{ alias: Alias; serviceId?: string | null; showOnline?: boolean }>()
+const emit = defineEmits<{ state: [value: { alias: Alias; state: State | null }] }>()
 const state = ref<State | null>(null)
 const error = ref('')
 const busy = ref(false)
 const actions: Record<Action, string> = { start: '启动', stop: '停止', restart: '重启' }
 let requestNo = 0
+let disposed = false
+function publish() { emit('state', { alias: props.alias, state: state.value }) }
 
 function containerLabel(value: State | null) {
   if (!value) return '未知'
@@ -25,38 +28,39 @@ function healthLabel(value: State | null) {
 }
 
 async function refresh() {
-  const request = ++requestNo
-  busy.value = true
-  error.value = ''
+  if (disposed) return
+  const request = ++requestNo, alias = props.alias
+  busy.value = true; error.value = ''
   try {
-    const result = (await apiClient.get<State>(`/bots/containers/${props.alias}`, { timeout: 85_000 })).data
-    if (request === requestNo) state.value = result
+    const result = (await apiClient.get<State>(`/bots/containers/${alias}`, { timeout: 85_000 })).data
+    if (!disposed && request === requestNo && alias === props.alias) { state.value = result; publish() }
   } catch {
-    if (request === requestNo) {
-      state.value = null
-      error.value = '管理代理不可达或目标未登记；暂无法读取容器状态。'
+    if (!disposed && request === requestNo && alias === props.alias) {
+      state.value = null; publish(); error.value = '管理代理不可达或目标未登记；暂无法读取容器状态。'
     }
-  } finally { if (request === requestNo) busy.value = false }
+  } finally { if (!disposed && request === requestNo) busy.value = false }
 }
 async function run(action: Action) {
-  if (!state.value || busy.value) return
+  if (!state.value || busy.value || disposed) return
+  const alias = props.alias, revision = state.value.revision, request = ++requestNo
   try {
-    await ElMessageBox.confirm(`确认${actions[action]} ${props.alias === 'qq' ? 'QQ Bot' : 'Discord Bot'}？消息收发可能暂时中断。`, '容器操作', { type: 'warning' })
+    await ElMessageBox.confirm(`确认${actions[action]} ${alias === 'qq' ? 'QQ Bot' : 'Discord Bot'}？消息收发可能暂时中断。`, '容器操作', { type: 'warning' })
   } catch { return }
-  const current = state.value
-  busy.value = true
-  error.value = ''
+  if (disposed || alias !== props.alias || request !== requestNo || state.value?.revision !== revision) return
+  busy.value = true; error.value = ''
   try {
-    state.value = (await apiClient.post<State>(`/bots/containers/${props.alias}`,
-      { action, revision: current.revision }, { timeout: 85_000 })).data
+    const result = (await apiClient.post<State>(`/bots/containers/${alias}`, { action, revision }, { timeout: 85_000 })).data
+    if (!disposed && alias === props.alias && request === requestNo) { state.value = result; publish() }
   } catch {
-    state.value = null
-    error.value = '操作未确认或状态已变化。请刷新后核对实际状态。'
-  } finally { busy.value = false }
+    if (!disposed && alias === props.alias && request === requestNo) {
+      state.value = null; publish(); error.value = '操作未确认或状态已变化。请刷新后核对实际状态。'
+    }
+  } finally { if (!disposed && request === requestNo) busy.value = false }
 }
-watch(() => props.alias, () => { state.value = null; void refresh() })
+watch(() => props.alias, () => { state.value = null; publish(); void refresh() })
 onMounted(() => { void refresh() })
-defineExpose({ refresh })
+onBeforeUnmount(() => { disposed = true; requestNo++ })
+defineExpose({ refresh, busy })
 </script>
 
 <template>
@@ -68,8 +72,8 @@ defineExpose({ refresh })
     </div>
     <div v-if="error" class="bot-warning"><strong>暂时无法获取容器状态</strong><p>{{ error }}</p></div>
     <p v-else class="bot-help">启动时间：{{ state?.started_at ?? '未知' }}</p>
-    <BotOnlineStatus v-if="serviceId" :service-id="serviceId" />
-    <p v-else class="bot-help">请选择连接以查看账号在线状态。</p>
+    <BotOnlineStatus v-if="serviceId && showOnline !== false" :service-id="serviceId" />
+    <p v-else-if="showOnline !== false" class="bot-help">请选择连接以查看账号在线状态。</p>
     <div class="bot-actions bot-container-actions"><el-button v-for="action in (['start', 'stop', 'restart'] as const)" :key="action" :disabled="busy || !state" @click="run(action)">{{ actions[action] }}</el-button></div>
     
   </section>

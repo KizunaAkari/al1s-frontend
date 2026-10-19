@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { millisecondsToSeconds, secondsToMilliseconds } from '../../../shared/time-units'
 import HelpHint from '../../../shared/ui/HelpHint.vue'
 import StepRegionField from './StepRegionField.vue'
 import { computed } from 'vue'
@@ -23,9 +24,9 @@ function update(key: CoordinateKey, value: number | undefined | null) {
       <ElInputNumber :model-value="Number(coordinateStep[key] ?? 0)" :min="0" :max="8191" :precision="0"
         :aria-label="key" @change="value => update(key, value)" />
     </label>
-    <label v-if="coordinateStep.action === 'swipe'">滑动时长（毫秒）
-      <ElInputNumber :model-value="Number(coordinateStep.duration_ms ?? 300)" :min="1" :max="60000" :precision="0"
-        aria-label="滑动时长" @change="value => update('duration_ms', value)" />
+    <label v-if="coordinateStep.action === 'swipe'">滑动时长（秒）
+      <ElInputNumber :model-value="millisecondsToSeconds(Number(coordinateStep.duration_ms ?? 300))" :min="0.001" :max="60" :precision="3" :step="0.1"
+        aria-label="滑动时长" @change="value => update('duration_ms', secondsToMilliseconds(value))" />
     </label>
   </section>
 </template>

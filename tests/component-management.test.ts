@@ -18,6 +18,15 @@ it('moves the entry into the administrator menu and removes the header probe',as
  expect(api.push).toHaveBeenCalledWith('/maintenance/components')
  expect(api.get).not.toHaveBeenCalled()
 })
+it('enters the workbench without converting a remembered script into an explicit open request',async()=>{
+ sessionStorage.setItem('al1s.editor.resume',JSON.stringify({scriptId:'old-script',deviceId:'old-phone',step:3}))
+ try {
+  const w=mount(App,{global:{plugins:[createPinia()],stubs:{RouterView:true,RouterLink:{name:'RouterLink',props:['to'],template:'<a><slot/></a>'},BrandLogo:true,ThemeMenu:true}}})
+  wrappers.push(w);await flushPromises()
+  const entry=w.findAllComponents({name:'RouterLink'}).find(link=>link.attributes('aria-label')==='Maa 编辑工作台')!
+  expect(entry.props('to')).toBe('/editor')
+ } finally {sessionStorage.removeItem('al1s.editor.resume')}
+})
 it('shows dependencies directly and preserves unknown/error feedback',async()=>{
  const w=health();await flushPromises()
  expect(w.find('.health-button').exists()).toBe(false)

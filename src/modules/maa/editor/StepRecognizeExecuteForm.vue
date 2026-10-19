@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { millisecondsToSeconds, secondsToMilliseconds } from '../../../shared/time-units'
 import HelpHint from '../../../shared/ui/HelpHint.vue'
 import StepPointPicker from './StepPointPicker.vue'
 import StepRegionField from './StepRegionField.vue'
@@ -91,8 +92,8 @@ function updateSub(field: 'click' | 'swipe', key: string, value: number | null |
       <label v-for="key in (['x1', 'y1', 'x2', 'y2'] as const)" :key="key">滑动 {{ key }}
         <ElInputNumber :model-value="subNumber('swipe', key, 0)" :min="0" :max="8191" :precision="0"
           :aria-label="`滑动 ${key}`" @change="value => updateSub('swipe', key, value)" /></label>
-      <label>滑动时长（毫秒）<ElInputNumber :model-value="subNumber('swipe', 'duration_ms', 300)"
-        :min="1" :max="60000" :precision="0" aria-label="滑动时长" @change="value => updateSub('swipe', 'duration_ms', value)" /></label>
+      <label>滑动时长（秒）<ElInputNumber :model-value="millisecondsToSeconds(subNumber('swipe', 'duration_ms', 300))"
+        :min="0.001" :max="60" :precision="3" :step="0.1" aria-label="滑动时长" @change="value => updateSub('swipe', 'duration_ms', secondsToMilliseconds(value))" /></label>
     </div>
     <template v-else-if="execution === 'match_center'">
       <ElAlert v-if="recognition !== 'image'" type="warning" :closable="false"
@@ -106,8 +107,8 @@ function updateSub(field: 'click' | 'swipe', key: string, value: number | null |
     <div class="pair">
       <label><HelpHint subject="执行次数" label="执行次数">{{ execution === 'match_center' ? '每次重新识别目标图片，命中后点击当次位置；暂未命中会继续等待，直到完成次数或步骤超时。' : '先识别一次，再连续执行设定次数；超时或取消会停止后续动作。' }}</HelpHint><ElInputNumber :model-value="number('execution_count', 1)" :min="1" :precision="0"
         aria-label="执行次数" @change="value => update('execution_count', value)" /></label>
-      <label>每次间隔（毫秒）<ElInputNumber :model-value="number('execution_interval_ms', 120)" :min="0" :max="3600000" :precision="0"
-        aria-label="执行间隔" @change="value => update('execution_interval_ms', value)" /></label>
+      <label>每次间隔（秒）<ElInputNumber :model-value="millisecondsToSeconds(number('execution_interval_ms', 120))" :min="0" :max="3600" :precision="3" :step="0.1"
+        aria-label="执行间隔" @change="value => update('execution_interval_ms', secondsToMilliseconds(value))" /></label>
     </div>
     
   </section>

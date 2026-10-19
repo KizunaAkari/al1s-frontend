@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { millisecondsToSeconds, secondsToMilliseconds } from '../../../shared/time-units'
 import HelpHint from '../../../shared/ui/HelpHint.vue'
 import StepPointPicker from './StepPointPicker.vue'
 import StepRegionField from './StepRegionField.vue'
@@ -12,6 +13,7 @@ const props = defineProps<{ document: ScriptDocument; activeIndex: number }>()
 const emit = defineEmits<{ change: [document: ScriptDocument]; select: [index: number] }>()
 const rules = computed(() => popupRules(props.document))
 const rule = computed(() => rules.value[props.activeIndex])
+const isText = computed(() => rule.value?.recognition_mode === 'text')
 const scope = computed(() => rule.value ? ruleStepIndexes(rule.value, props.document.steps.length) : [])
 const names: Record<string, string> = {
   start: '开始', launch_app: '启动应用', cleanup: '结束应用并清理', wait: '等待',
@@ -68,13 +70,24 @@ function point(axis: 'x' | 'y'): number | undefined {
       <label>规则名称<ElInput :model-value="String(rule.name || '')" maxlength="200" aria-label="规则名称"
         @update:model-value="value => update('name', value)" /></label>
       <ElCheckbox :model-value="rule.enabled !== false" @change="value => update('enabled', value)">启用此弹窗规则</ElCheckbox>
-      <StepRegionField use="template" title="弹窗识别图片" :bound="rule.template_base64" />
-      <label>匹配阈值<ElInputNumber :model-value="Number(rule.threshold ?? 0.85)" :min="0.01" :max="1" :step="0.01" :precision="2"
-        aria-label="匹配阈值" @change="value => updateNumber('threshold', value)" /></label>
+      <label>识别方式<ElSelect :model-value="isText ? 'text' : 'image'" aria-label="弹窗识别方式"
+        @change="value => update('recognition_mode', value)">
+        <ElOption label="图片匹配" value="image" /><ElOption label="OCR 文字" value="text" />
+      </ElSelect></label>
+      <template v-if="isText">
+        <label>识别文字<ElInput :model-value="String(rule.text ?? '')" maxlength="200" aria-label="弹窗识别文字"
+          @update:model-value="value => update('text', value)" /></label>
+        <StepRegionField use="ocr_region" title="弹窗文字搜索区域" :bound="rule.search_region" />
+      </template>
+      <template v-else>
+        <StepRegionField use="template" title="弹窗识别图片" :bound="rule.template_base64" />
+        <label>匹配阈值<ElInputNumber :model-value="Number(rule.threshold ?? 0.85)" :min="0.01" :max="1" :step="0.01" :precision="2"
+          aria-label="匹配阈值" @change="value => updateNumber('threshold', value)" /></label>
+      </template>
       <label>点击方式<ElSelect :model-value="String(rule.click_mode || 'fixed')" aria-label="点击方式"
         @change="value => update('click_mode', value)">
-        <ElOption label="点击识别图片中心" value="match_center" />
-        <ElOption label="点击识别图片中心（旧配置）" value="template_center" />
+        <ElOption :label="isText ? '点击识别文字中心' : '点击识别图片中心'" value="match_center" />
+        <ElOption :label="isText ? '点击识别文字中心（旧配置）' : '点击识别图片中心（旧配置）'" value="template_center" />
         <ElOption label="固定坐标点击" value="fixed" />
         <ElOption label="点击另选图片中心" value="image" />
       </ElSelect></label>
@@ -95,8 +108,8 @@ function point(axis: 'x' | 'y'): number | undefined {
           aria-label="命中冷却" @change="value => updateNumber('cooldown_seconds', value)" /></label>
         <label>点击次数<ElInputNumber :model-value="Number(rule.click_count ?? 1)" :min="1" :max="10" :precision="0"
           aria-label="弹窗点击次数" @change="value => updateNumber('click_count', value)" /></label>
-        <label>点击间隔（毫秒）<ElInputNumber :model-value="Number(rule.click_interval_ms ?? 0)" :min="0" :max="60000" :precision="0"
-          aria-label="弹窗点击间隔" @change="value => updateNumber('click_interval_ms', value)" /></label>
+        <label>点击间隔（秒）<ElInputNumber :model-value="millisecondsToSeconds(Number(rule.click_interval_ms ?? 0))" :min="0" :max="60" :precision="3" :step="0.1"
+          aria-label="弹窗点击间隔" @change="value => updateNumber('click_interval_ms', secondsToMilliseconds(value))" /></label>
         <label>点击后等待（秒）<ElInputNumber :model-value="Number(rule.wait_after_click_seconds ?? 0.3)" :min="0" :max="300" :step="0.1"
           aria-label="点击后等待" @change="value => updateNumber('wait_after_click_seconds', value)" /></label>
       </div>

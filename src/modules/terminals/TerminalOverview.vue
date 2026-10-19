@@ -5,6 +5,7 @@ import { formatDateTime } from '../../shared/presentation/format'
 import LogicalPhones from './LogicalPhones.vue'
 import StorageSummary from './StorageSummary.vue'
 import TerminalDiscoveries from './TerminalDiscoveries.vue'
+import AndroidSetupCheck from './AndroidSetupCheck.vue'
 
 defineProps<{
   terminal: Terminal
@@ -47,6 +48,7 @@ defineEmits<{
       </template>
     </LogicalPhones>
     <div class="overview-panels">
+      <AndroidSetupCheck v-if="terminal.terminal_type==='android'" :key="terminal.terminal_id" :terminal-id="terminal.terminal_id" />
       <StorageSummary :terminal="terminal" @details="$emit('storageDetails')" />
       <section class="terminal-info-card" aria-label="终端信息">
         <h3>终端信息</h3>

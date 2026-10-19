@@ -1,5 +1,5 @@
 export interface EditorResume {
-  scriptId: string
+  scriptId?: string
   deviceId?: string
   step: number
   restoreDraft?: boolean
@@ -14,10 +14,12 @@ export function readEditorResume(): EditorResume | undefined {
     const value: unknown = JSON.parse(raw)
     if (!value || typeof value !== 'object') return undefined
     const record = value as Record<string, unknown>
-    if (typeof record.scriptId !== 'string' || !record.scriptId) return undefined
+    const scriptId = typeof record.scriptId === 'string' && record.scriptId ? record.scriptId : undefined
+    const deviceId = typeof record.deviceId === 'string' && record.deviceId ? record.deviceId : undefined
+    if (!scriptId && !deviceId) return undefined
     return {
-      scriptId: record.scriptId,
-      deviceId: typeof record.deviceId === 'string' ? record.deviceId : undefined,
+      scriptId,
+      deviceId,
       step: typeof record.step === 'number' && Number.isInteger(record.step) && record.step > 0 ? record.step : 1,
       restoreDraft: record.restoreDraft === true,
     }

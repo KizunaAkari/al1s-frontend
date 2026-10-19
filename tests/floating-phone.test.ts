@@ -33,7 +33,7 @@ it('anchors top right, follows orientation, clamps and preserves content through
  await wrapper.setProps({landscape:false})
  expect(panel().style.height).toBe('452px')
  await wrapper.setProps({connected:false})
- expect(panel().style.height).toBe('240px')
+ expect(panel().style.height).toBe('360px')
  wrapper.unmount()
  workspace.remove()
 })

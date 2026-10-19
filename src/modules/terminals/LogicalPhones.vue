@@ -1,14 +1,16 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type { ApiError } from '../../shared/api/client'
 import { Iphone, Refresh } from '@element-plus/icons-vue'
-import { ElButton, ElIcon, ElRadioGroup, ElRadioButton } from 'element-plus'
+import { ElButton, ElDrawer, ElIcon, ElRadioGroup, ElRadioButton } from 'element-plus'
 import type { TargetDevice, Terminal } from '../../shared/api/terminals'
 import { formatDateTime } from '../../shared/presentation/format'
 import { phoneAvailability } from '../../shared/presentation/phone-availability'
 import StatusBadge from '../../shared/ui/StatusBadge.vue'
 import DataState from '../../shared/ui/DataState.vue'
 import LogicalPhoneNameEditor from './LogicalPhoneNameEditor.vue'
+import PhonePaths from './PhonePaths.vue'
+const selectedPath = ref<string>()
 defineEmits<{ binding: [device: TargetDevice]; renamed: [device: TargetDevice]; more: []; retry: [] }>()
 const scope = defineModel<'current' | 'unbound' | 'all'>('scope', { default: 'current' })
 const props = defineProps<{
@@ -55,6 +57,7 @@ function manager(id: string | null) {
         </div>
         <div data-label="最近更新"><span>{{ formatDateTime(device.updated_at).replace('---', '—') }}</span></div>
         <div class="phone-actions" data-label="操作">
+          <ElButton size="small" @click="selectedPath=device.device_id">连接路径</ElButton>
           <ElButton size="small" plain @click="$emit('binding', device)">绑定 Android APK</ElButton>
         </div>
       </article>
@@ -63,6 +66,9 @@ function manager(id: string | null) {
   <p v-if="error && items.length" role="alert">{{ error.message }}（显示上次数据）<ElButton size="small" @click="$emit('retry')">重试手机列表</ElButton></p>
   <ElButton v-if="hasMore" class="phones-more" :loading="loading" @click="$emit('more')">加载更多手机</ElButton>
   <slot name="after" />
+  <ElDrawer :model-value="!!selectedPath" title="手机连接路径" size="500px" @close="selectedPath=undefined">
+    <PhonePaths v-if="selectedPath" :key="selectedPath" :device-id="selectedPath" />
+  </ElDrawer>
 </section>
 </template>
 <style scoped>
