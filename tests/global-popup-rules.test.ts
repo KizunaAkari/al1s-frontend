@@ -2,6 +2,19 @@ import { expect, it } from 'vitest'
 import type { ScriptDocument } from '../src/shared/api/maa-script-editor'
 import { addPopupRule, globalPopupsEnabled, popupRules, removePopupRule, ruleStepIndexes, setRuleStepIndexes,
   toggleGlobalPopups, updatePopupRule } from '../src/modules/maa/editor/global-popup-rules'
+import { bindImage } from '../src/modules/maa/editor/image-binding'
+
+it('retains configured OCR rules when disabled and binds their own original screenshot region', () => {
+  const document: ScriptDocument = { steps: [{ action: 'back' }], global_popups: [
+    { recognition_mode: 'text', text: '追加挑战', click_mode: 'match_center', enabled: true },
+  ] }
+  const disabled = toggleGlobalPopups(document, false)
+  expect(popupRules(disabled)).toEqual([{ ...popupRules(document)[0], enabled: false }])
+  const bound = bindImage(document, 0, { width: 1600, height: 720 },
+    { x: 100, y: 200, width: 300, height: 50 }, 'ocr_region', undefined, undefined, 0)
+  expect(popupRules(bound)[0]).toMatchObject({ text: '追加挑战', search_region: { x: 100, y: 200, width: 300, height: 50 } })
+  expect(bound.steps).toEqual(document.steps)
+})
 
 it('toggles every existing popup rule without changing its configuration or real step indexes', () => {
   const original: ScriptDocument = { steps: [{ action: 'start' }, { action: 'wait' }], global_popups: [

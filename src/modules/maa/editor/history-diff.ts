@@ -1,3 +1,4 @@
+import { millisecondsToSeconds } from '../../../shared/time-units'
 import type { ScriptDocument, WorkflowStep } from '../../../shared/api/maa-script-editor'
 import { sameDocument } from './document-equality'
 
@@ -26,19 +27,20 @@ function value(value: unknown, key?: string): string {
   if (key === 'execution_mode') return historyExecutionMode(value)
   if (key === 'recognition_mode') return value === 'text' ? '文字识别' : '图片识别'
   if (typeof value === 'number' && (key?.endsWith('_seconds') || key === 'seconds')) return `${value} 秒`
-  if (typeof value === 'number' && key?.endsWith('_ms')) return `${value} 毫秒`
+  if (typeof value === 'number' && key?.endsWith('_ms')) return `${millisecondsToSeconds(value)} 秒`
   if (typeof value === 'string' && value.startsWith('data:image/')) return '图片内容'
   return String(value).slice(0, 80)
 }
-export function historyDifference(before: ScriptDocument, after: ScriptDocument) {
+export function historyDifference(before: ScriptDocument, after: ScriptDocument, details = true) {
   let added = 0, removed = 0, changed = 0
   const lines: string[] = []
   for (let index = 0; index < Math.max(before.steps.length, after.steps.length); index++) {
     const a = before.steps[index], b = after.steps[index], prefix = `第 ${String(index + 1).padStart(2, '0')} 步`
-    if (!a && b) { added++; lines.push(`${prefix}：新增 ${historyStepTitle(b)}`); continue }
-    if (a && !b) { removed++; lines.push(`${prefix}：移除 ${historyStepTitle(a)}`); continue }
+    if (!a && b) { added++; if (details) lines.push(`${prefix}：新增 ${historyStepTitle(b)}`); continue }
+    if (a && !b) { removed++; if (details) lines.push(`${prefix}：移除 ${historyStepTitle(a)}`); continue }
     if (!a || !b || sameDocument(a, b)) continue
     changed++
+    if (!details) continue
     if (a.action !== b.action) lines.push(`${prefix}：${historyStepTitle(a)} → ${historyStepTitle(b)}`)
     else {
       const keys = [...new Set([...Object.keys(a), ...Object.keys(b)])].filter(key => !sameDocument(a[key], b[key]))
@@ -50,9 +52,9 @@ export function historyDifference(before: ScriptDocument, after: ScriptDocument)
   }
   const { steps: _before, ...beforeSettings } = before, { steps: _after, ...afterSettings } = after
   const settingsChanged = !sameDocument(beforeSettings, afterSettings)
-  if (settingsChanged) lines.push('脚本设置或全局规则已变更')
+  if (details && settingsChanged) lines.push('脚本设置或全局规则已变更')
   const summary = [added ? `新增 ${added} 步` : '', removed ? `移除 ${removed} 步` : '',
     changed ? `修改 ${changed} 步` : '', settingsChanged ? '脚本设置变更' : ''].filter(Boolean).join(' · ')
   return { summary: summary || '内容一致', lines: lines.slice(0, 20), more: Math.max(0, lines.length - 20),
-    changed: !sameDocument(before, after) }
+    changed: added + removed + changed > 0 || settingsChanged }
 }

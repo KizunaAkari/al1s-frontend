@@ -117,47 +117,8 @@ export async function createLineupRecord(file: Blob & { name?: string }): Promis
   })).data
 }
 
-export async function fetchLineupRecords(cursor: string | null = null): Promise<LineupRecordsPage> {
-  return (await apiClient.get<LineupRecordsPage>('/lineup/records', {
-    params: { cursor: cursor ?? undefined },
-  })).data
-}
-
-export async function fetchLineupRecord(recordId: string): Promise<LineupDetail> {
-  return (await apiClient.get<LineupDetail>(`/lineup/records/${encodeURIComponent(recordId)}`)).data
-}
-
-export async function fetchLineupRecordsByIds(recordIds: string[]): Promise<{
-  items: LineupDetail[]; missing_ids: string[]
-}> {
-  return (await apiClient.post('/lineup/records/query', { record_ids: recordIds })).data
-}
-
 export async function fetchLineupImage(recordId: string): Promise<Blob> {
   return (await apiClient.get<Blob>(`/lineup/records/${encodeURIComponent(recordId)}/image`, {
     responseType: 'blob',
   })).data
-}
-
-export async function runLineupRecord(
-  recordId: string,
-  terminalId: string,
-  options: LineupRunOptions = {},
-): Promise<LineupDetail> {
-  const body: { terminal_id: string } & LineupRunOptions = { terminal_id: terminalId, ...options }
-  return (await apiClient.post<LineupDetail>(
-    `/lineup/records/${encodeURIComponent(recordId)}/run`,
-    body,
-  )).data
-}
-
-export async function reviewLineupRecord(
-  recordId: string,
-  expectedVersion: number,
-  studentIds: LineupStudentIds,
-): Promise<LineupDetail> {
-  return (await apiClient.put<LineupDetail>(
-    `/lineup/records/${encodeURIComponent(recordId)}/review`,
-    { expected_version: expectedVersion, student_ids: studentIds },
-  )).data
 }

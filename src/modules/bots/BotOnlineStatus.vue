@@ -4,7 +4,8 @@ import { fetchBotRuntimeStatus, type BotRuntimeStatus } from '../../shared/api/b
 
 const POLL_INTERVAL_MS = 10_000
 
-const props = defineProps<{ serviceId: string }>()
+const props = defineProps<{ serviceId: string; compact?: boolean }>()
+const emit = defineEmits<{ status: [value: BotRuntimeStatus | null] }>()
 const status = ref<BotRuntimeStatus | null>(null)
 const loading = ref(false)
 const failed = ref(false)
@@ -69,9 +70,11 @@ async function refresh() {
     const result = await fetchBotRuntimeStatus(serviceId, requestController.signal)
     if (disposed || currentGeneration !== generation || serviceId !== props.serviceId) return
     status.value = result
+    emit('status', result)
   } catch {
     if (disposed || currentGeneration !== generation || serviceId !== props.serviceId) return
     status.value = null
+    emit('status', null)
     failed.value = true
   } finally {
     if (controller === requestController) controller = null
@@ -90,6 +93,7 @@ function resetForService() {
   loading.value = false
   failed.value = false
   status.value = null
+  emit('status', null)
   void refresh()
 }
 
@@ -102,19 +106,20 @@ onBeforeUnmount(() => {
   controller?.abort()
   controller = null
 })
+defineExpose({ refresh })
 </script>
 
 <template>
-  <section class="bot-online-status" aria-label="Bot 在线状态">
+  <section class="bot-online-status" :class="{ 'bot-online-compact': compact }" aria-label="Bot 在线状态">
     <div class="bot-online-heading">
-      <span>账号在线状态</span>
-      <strong :class="['bot-online-value', `bot-online-${status?.state ?? 'unknown'}`]">{{ stateLabel }}</strong>
+      <span v-if="!compact">账号在线状态</span>
+      <strong :class="['bot-online-value', `bot-online-${status?.state ?? 'unknown'}`]">{{ compact ? '账号' : '' }}{{ stateLabel }}</strong>
     </div>
-    <p v-if="reasonLabel" class="bot-online-detail">原因：{{ reasonLabel }}</p>
+    <p v-if="reasonLabel && (!compact || status?.state !== 'online')" class="bot-online-detail">原因：{{ reasonLabel }}</p>
     <p v-if="errorLabel" class="bot-online-detail">错误：{{ errorLabel }}</p>
-    <p v-if="activity" class="bot-online-detail">{{ activity.label }}：<time :datetime="activity.value">{{ activity.value }}</time></p>
+    <p v-if="activity && !compact" class="bot-online-detail">{{ activity.label }}：<time :datetime="activity.value">{{ activity.value }}</time></p>
     <p v-if="failed" class="bot-online-error" role="alert">无法获取 Bot 在线状态，请稍后刷新。</p>
-    <button type="button" class="bot-online-refresh" :disabled="loading" @click="refresh">{{ loading ? '检查中…' : '刷新在线状态' }}</button>
+    <button v-if="!compact" type="button" class="bot-online-refresh" :disabled="loading" @click="refresh">{{ loading ? '检查中…' : '刷新在线状态' }}</button>
   </section>
 </template>
 
@@ -131,5 +136,9 @@ onBeforeUnmount(() => {
 .bot-online-error { color: #bd3838; }
 .bot-online-refresh { justify-self: start; margin-top: 3px; padding: 5px 10px; border: 1px solid var(--border-strong); border-radius: 6px; color: var(--accent); background: var(--surface); cursor: pointer; }
 .bot-online-refresh:disabled { cursor: default; opacity: .65; }
+.bot-online-compact { padding: 0; border: 0; background: transparent; gap: 3px; }
+.bot-online-compact .bot-online-heading { justify-content: flex-start; }
+.bot-online-compact .bot-online-value { font-size: 23px; display: flex; align-items: center; gap: 14px; }
+.bot-online-compact .bot-online-value::before { content: ''; width: 17px; height: 17px; border-radius: 50%; background: currentColor; flex: none; }
 @media (max-width: 600px) { .bot-online-heading { align-items: flex-start; } }
 </style>

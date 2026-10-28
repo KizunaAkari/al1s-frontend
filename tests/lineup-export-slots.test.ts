@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { lineupExportSlots } from '../src/modules/lineup/lineup-export-slots'
-import { buildPairCopyText, buildSideCopyText, canCopySide } from '../src/modules/lineup/lineup-utils'
+import { buildSideCopyText, canCopySide } from '../src/modules/lineup/lineup-utils'
 
 describe('ArcGM six-slot exports', () => {
   it.each([
@@ -25,11 +25,10 @@ describe('ArcGM six-slot exports', () => {
     expect(lineupExportSlots(ids)).not.toBe(ids)
   })
 
-  it('requires confirmation, uniqueness and both sides for a pair', () => {
+  it('requires confirmation and uniqueness for each side', () => {
     const review = [10001, 20053, null, null, null, null, 10023, 20052, null, null, null, null]
-    expect(buildPairCopyText(review, true, ['attack', 'defense'], { attack: 2, defense: 2 }))
-      .toBe('10001,0,0,0,20053,0\t10023,0,0,0,20052,0')
-    expect(buildPairCopyText(review, true, ['attack'], { attack: 2 })).toBeNull()
+    expect(buildSideCopyText(review, 'attack', true, true, 2)).toBe('10001,0,0,0,20053,0')
+    expect(buildSideCopyText(review, 'defense', true, true, 2)).toBe('10023,0,0,0,20052,0')
     expect(buildSideCopyText(review, 'attack', false, true, 2)).toBeNull()
     expect(buildSideCopyText(review, 'attack', true, true, 3)).toBeNull()
     expect(buildSideCopyText([10001, 10001], 'attack', true, true, 2)).toBeNull()

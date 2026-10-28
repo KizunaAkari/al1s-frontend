@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { millisecondsToSeconds } from "../../../shared/time-units"
 import { inject, provide } from 'vue'
 import type { ScriptDocument } from '../../../shared/api/maa-script-editor'
 import WorkflowRecognitionPreview from './WorkflowRecognitionPreview.vue'
@@ -28,7 +29,7 @@ function point(value: unknown) {
         <span v-if="step.seconds != null">等待 {{ step.seconds }} 秒</span>
         <span v-if="step.execution_count != null">执行 {{ step.execution_count }} 次</span>
         <span v-if="step.execution_mode">{{ historyExecutionMode(step.execution_mode) }}</span>
-        <span v-if="step.execution_interval_ms != null">间隔 {{ step.execution_interval_ms }} 毫秒</span>
+        <span v-if="step.execution_interval_ms != null">间隔 {{ millisecondsToSeconds(Number(step.execution_interval_ms)) }} 秒</span>
         <span v-if="step.poll_interval_seconds != null">识别间隔 {{ step.poll_interval_seconds }} 秒</span>
         <span v-if="step.click">点击坐标 {{ point(step.click) }}</span>
         <span v-if="step.action === 'tap'">点击坐标 {{ point(step) }}</span>

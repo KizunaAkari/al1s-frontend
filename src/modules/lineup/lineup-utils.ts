@@ -3,17 +3,12 @@ import type {
   LineupResult,
   LineupSide,
   LineupSlot,
-  LineupState,
   LineupStudentIds,
 } from '../../shared/api/lineup'
 import { lineupExportSlots } from './lineup-export-slots'
 
 export const LINEUP_SLOTS_PER_SIDE = 6
 export const LINEUP_TOTAL_SLOTS = LINEUP_SLOTS_PER_SIDE * 2
-
-export function isLineupPollingState(state: LineupState | null | undefined): boolean {
-  return state === 'waiting' || state === 'queued' || state === 'running'
-}
 
 export function emptyLineupReview(): LineupStudentIds {
   return [null, null, null, null, null, null, null, null, null, null, null, null]
@@ -56,19 +51,6 @@ export function buildSideCopyText(
   return lineupExportSlots(reviewForSide(review, side, count) as number[])!.join(',')
 }
 
-export function buildPairCopyText(
-  review: readonly (number | null)[],
-  saved: boolean,
-  availableSides?: readonly LineupSide[],
-  sizes?: Partial<Record<LineupSide, number>>,
-): string | null {
-  const attackAvailable = !availableSides || availableSides.includes('attack')
-  const defenseAvailable = !availableSides || availableSides.includes('defense')
-  const attack = buildSideCopyText(review, 'attack', saved, attackAvailable, sizes?.attack ?? 6)
-  const defense = buildSideCopyText(review, 'defense', saved, defenseAvailable, sizes?.defense ?? 6)
-  return attack && defense ? `${attack}\t${defense}` : null
-}
-
 export function slotAt(slots: readonly LineupSlot[], side: LineupSide, index: number): LineupSlot | null {
   return slots.find((slot) => slot.side === side && slot.index === index) ?? null
 }
@@ -95,25 +77,6 @@ export function availableSidesForResult(result: LineupResult | null | undefined)
   return (['attack', 'defense'] as const).filter((side) => (
     result.slots.some((slot) => slot.side === side && slot.present !== false)
   ))
-}
-
-export function isSideAvailable(
-  detail: Pick<LineupDetail, 'result'> | null,
-  side: LineupSide,
-): boolean {
-  return availableSidesForResult(detail?.result).includes(side)
-}
-
-export function hasCompleteAgreedLayout(detail: Pick<LineupDetail, 'result'> | null): boolean {
-  const result = detail?.result
-  if (!result || !result.layout_valid || result.slots.length !== LINEUP_TOTAL_SLOTS) return false
-  for (const side of ['attack', 'defense'] as const) {
-    for (let index = 0; index < LINEUP_SLOTS_PER_SIDE; index += 1) {
-      const slot = slotAt(result.slots, side, index)
-      if (!slot || !slot.agreed) return false
-    }
-  }
-  return true
 }
 
 /** Prefer an explicit review; otherwise expose only safe machine defaults. */
@@ -154,14 +117,6 @@ export function machineDefaultsForDetail(detail: Pick<LineupDetail, 'result'>): 
     defaults[sideOffset(slot.side) + slot.index] = slot.image_id
   }
   return defaults
-}
-
-export function reviewsEqual(
-  left: readonly (number | null)[] | null,
-  right: readonly (number | null)[] | null,
-): boolean {
-  if (!left || !right || left.length !== right.length) return left === right
-  return left.every((value, index) => value === right[index])
 }
 
 export function teamSize(result: LineupResult | null | undefined, side: LineupSide): number {

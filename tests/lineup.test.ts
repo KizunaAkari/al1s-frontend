@@ -4,21 +4,15 @@ import { apiClient } from '../src/shared/api/client'
 import {
   createLineupRecord,
   fetchLineupImage,
-  fetchLineupRecords,
-  reviewLineupRecord,
-  runLineupRecord,
   type LineupDetail,
   type LineupStudentIds,
 } from '../src/shared/api/lineup'
 import {
   availableSidesForResult,
-  buildPairCopyText,
   buildSideCopyText,
   canCopySide,
   emptyLineupReview,
-  hasCompleteAgreedLayout,
   initialReview,
-  isLineupPollingState,
   isValidUniqueSide,
   machineDefaultsForDetail,
   isV3LineupResult,
@@ -58,20 +52,12 @@ describe('lineup export rules', () => {
     expect(isValidUniqueSide([101, 101, 103, 104, 105, 106, 201, 202, 203, 204, 205, 206], 'attack')).toBe(false)
     expect(buildSideCopyText([101, null, 103, 104, 105, 106, 201, 202, 203, 204, 205, 206], 'attack', true)).toBeNull()
   })
-
-  it('preserves side order and uses a real tab between attack and defense', () => {
-    const text = buildPairCopyText(review(), true)
-    expect(text).toBe('101,102,103,104,105,106\t201,202,203,204,205,206')
-    expect(text).not.toContain('\\t')
-  })
 })
 
 describe('lineup recognition result guards', () => {
   it('does not invent IDs for a pending or unrecognised result', () => {
     expect(initialReview(detail())).toEqual(emptyLineupReview())
     expect(initialReview(detail({ result: null, review: null }))).toEqual(emptyLineupReview())
-    expect(hasCompleteAgreedLayout(detail())).toBe(true)
-    expect(hasCompleteAgreedLayout(detail({ result: { ...detail().result!, layout_valid: false } }))).toBe(false)
     expect(initialReview(detail({ review: review() }))).toEqual(review())
   })
 
@@ -117,7 +103,6 @@ describe('lineup recognition result guards', () => {
     ])
     expect(buildSideCopyText(review(), 'attack', true, true)).toBe('101,102,103,104,105,106')
     expect(buildSideCopyText(review(), 'defense', true, false)).toBeNull()
-    expect(buildPairCopyText(review(), true, ['attack'])).toBeNull()
   })
 
   it('does not autofill a v3 conflict even when a selected ID is present', () => {
@@ -153,16 +138,8 @@ describe('lineup recognition result guards', () => {
       slot.image_id = review()[index]!
       slot.ocr_id = review()[index]!
     })
-    expect(buildPairCopyText(initialReview(source), true)).toBe(
-      '101,102,103,104,105,106\t201,202,203,204,205,206',
-    )
-  })
-
-  it('polls only states that represent active execution', () => {
-    expect(isLineupPollingState('uploaded')).toBe(false)
-    expect(isLineupPollingState('waiting')).toBe(true)
-    expect(isLineupPollingState('queued')).toBe(true)
-    expect(isLineupPollingState('running')).toBe(true)
+    expect(buildSideCopyText(initialReview(source), 'attack', true)).toBe('101,102,103,104,105,106')
+    expect(buildSideCopyText(initialReview(source), 'defense', true)).toBe('201,202,203,204,205,206')
   })
 })
 
@@ -173,26 +150,6 @@ describe('lineup API contract', () => {
     await createLineupRecord(file)
     expect(post).toHaveBeenCalledWith('/lineup/records', file, {
       params: { name: 'battle.png' }, headers: { 'Content-Type': 'image/png' }, timeout: 30000,
-    })
-  })
-
-  it('keeps the fixed history cursor and review/run request bodies', async () => {
-    const get = vi.spyOn(apiClient, 'get').mockResolvedValue({ data: { items: [], next_cursor: null } } as never)
-    const post = vi.spyOn(apiClient, 'post').mockResolvedValue({ data: detail({ state: 'queued' }) } as never)
-    const put = vi.spyOn(apiClient, 'put').mockResolvedValue({ data: detail({ review: review() }) } as never)
-    await fetchLineupRecords('cursor-1')
-    await runLineupRecord('record-1', 'terminal-1')
-    await reviewLineupRecord('record-1', 7, review())
-    expect(get).toHaveBeenCalledWith('/lineup/records', { params: { cursor: 'cursor-1' } })
-    expect(post).toHaveBeenCalledWith('/lineup/records/record-1/run', { terminal_id: 'terminal-1' })
-    expect(put).toHaveBeenCalledWith('/lineup/records/record-1/review', { expected_version: 7, student_ids: review() })
-  })
-
-  it('passes selected v3 run options when provided', async () => {
-    const post = vi.spyOn(apiClient, 'post').mockResolvedValue({ data: detail({ state: 'queued' }) } as never)
-    await runLineupRecord('record-1', 'terminal-1', { layout_hint: 'left_attack', recognition_mode: 'text' })
-    expect(post).toHaveBeenCalledWith('/lineup/records/record-1/run', {
-      terminal_id: 'terminal-1', layout_hint: 'left_attack', recognition_mode: 'text',
     })
   })
 

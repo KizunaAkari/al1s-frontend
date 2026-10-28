@@ -13,6 +13,13 @@ const documentWith = (steps: WorkflowStep[], settings: Record<string, unknown> =
 afterEach(() => vi.restoreAllMocks())
 
 describe('historyDifference', () => {
+  it('returns the same summary without generating detail lines in summary mode', () => {
+    const before = documentWith([{ action: 'wait', seconds: 1 }])
+    const after = documentWith([{ action: 'wait', seconds: 2 }, { action: 'home' }])
+    expect(historyDifference(before, after, false)).toEqual({
+      summary: '新增 1 步 · 修改 1 步', lines: [], more: 0, changed: true,
+    })
+  })
   it('ignores object key ordering when the persisted document is unchanged', () => {
     const before = documentWith([{
       action: 'wait',

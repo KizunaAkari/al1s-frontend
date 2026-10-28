@@ -58,9 +58,15 @@ it('displays existing match_offset and color_marker modes without replacing them
     const step = { action: 'wait_click', click_mode: mode, mode_specific: { keep: true } }
     const wrapper = mount(StepActionForm, { props: { step } })
     try {
-      expect(wrapper.findComponent(ElSelect).props('modelValue')).toBe(mode)
-      expect(await helpText(wrapper, '点击模式')).toContain(mode)
+      if (mode === 'color_marker') {
+        expect(wrapper.text()).toContain('颜色标记循环')
+        expect(wrapper.findComponent(ElSelect).exists()).toBe(false)
+      } else {
+        expect(wrapper.findComponent(ElSelect).props('modelValue')).toBe(mode)
+        expect(await helpText(wrapper, '点击模式')).toContain(mode)
+      }
       expect(wrapper.emitted('change')).toBeUndefined()
+      expect(step).toEqual({ action: 'wait_click', click_mode: mode, mode_specific: { keep: true } })
     } finally { wrapper.unmount() }
   }
 })
@@ -71,12 +77,12 @@ it('shows click count and interval defaults, preserves fields, and keeps large v
   const wrapper = mount(StepActionForm, { props: { step } })
   try {
     const count = numberInput(wrapper, '点击次数')
-    const interval = numberInput(wrapper, '点击间隔（毫秒）')
+    const interval = numberInput(wrapper, '点击间隔（秒）')
     expect(count.props('modelValue')).toBe(1)
     expect(count.props('min')).toBe(1)
-    expect(interval.props('modelValue')).toBe(120)
+    expect(interval.props('modelValue')).toBe(0.12)
     expect(interval.props('min')).toBe(0)
-    expect(interval.props('max')).toBe(3600000)
+    expect(interval.props('max')).toBe(3600)
     const clickHelp = await helpText(wrapper, '点击设置')
     expect(clickHelp).toContain('连击受步骤剩余时间限制')
     expect(clickHelp).toContain('遇到失败或取消停止')
@@ -84,7 +90,7 @@ it('shows click count and interval defaults, preserves fields, and keeps large v
 
     count.vm.$emit('change', 1000001)
     expect(wrapper.emitted('change')?.[0]).toEqual([{ ...step, click_count: 1000001 }])
-    interval.vm.$emit('change', 25000)
+    interval.vm.$emit('change', 25)
     expect(wrapper.emitted('change')?.[1]).toEqual([{ ...step, click_interval_ms: 25000 }])
     expect(step).toEqual(before)
   } finally { wrapper.unmount() }

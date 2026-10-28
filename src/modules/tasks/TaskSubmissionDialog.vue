@@ -34,6 +34,10 @@ const error = ref('')
 const busy = ref(false)
 const loadingContent = ref(false)
 const contents = ref<Array<{ id: string; name: string }>>([])
+const orderedContents = computed(() => [
+  ...contents.value.filter(item => item.id.startsWith('strategy:')),
+  ...contents.value.filter(item => item.id.startsWith('script:')),
+])
 const scriptCursor = ref<string | null>(null)
 const strategyCursor = ref<string | null>(null)
 const pending = ref<TaskSubmission | null>(null)
@@ -174,8 +178,8 @@ async function send() {
         <ElSelect v-model="application" :disabled="!device"><ElOption v-for="x in apps" :key="x.application_id" :label="x.display_name" :value="x.application_id" /></ElSelect>
         <span v-if="device && !apps.length">这台手机尚无适用分类，请先在脚本库授权。</span>
       </ElFormItem>
-      <ElFormItem label="已保存脚本／策略">
-        <ElSelect v-model="content" :loading="loadingContent"><ElOption v-for="x in contents" :key="x.id" :value="x.id" :label="x.name" /></ElSelect>
+      <ElFormItem label="已保存策略／脚本">
+        <ElSelect v-model="content" :loading="loadingContent"><ElOption v-for="x in orderedContents" :key="x.id" :value="x.id" :label="x.name" /></ElSelect>
         <ElButton v-if="scriptCursor || strategyCursor" :disabled="loadingContent" @click="loadContent(true)">更多内容</ElButton>
       </ElFormItem>
       <ElFormItem label="执行超时（秒，最多4小时）"><ElInputNumber v-model="timeout" :min="1" :max="14400" :precision="0" /></ElFormItem>

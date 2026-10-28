@@ -15,6 +15,7 @@ vi.mock('../src/shared/api/maa-script-history', () => ({
 }))
 
 import { useEditorHistory } from '../src/modules/maa/editor/use-editor-history'
+import * as historyDiff from '../src/modules/maa/editor/history-diff'
 
 const documentWith = (action: string, fields: Record<string, unknown> = {}): ScriptDocument => ({
   version: 2,
@@ -40,6 +41,7 @@ function deferred<T>() {
 type HistoryView = ReturnType<typeof useEditorHistory>
 
 function editorView(options: {
+  open?: boolean
   history?: ScriptDocument[]
   metadata?: HistoryMetadata[]
   cursor?: number
@@ -49,7 +51,9 @@ function editorView(options: {
   view: HistoryView
   document: Ref<ScriptDocument | undefined>
   protectedDraft: Ref<EditorDraft | undefined>
+  open: Ref<boolean>
 } {
+  const open = ref(options.open ?? true)
   const document = ref<ScriptDocument | undefined>(documentWith('wait', { seconds: 9 }))
   const history = ref<ScriptDocument[]>(options.history ?? [documentWith('wait', { seconds: 1 })])
   const metadata = ref<HistoryMetadata[]>(options.metadata ?? [{ time: 10, versionId: 'local-version' }])
@@ -59,6 +63,7 @@ function editorView(options: {
   const Harness = defineComponent({
     setup() {
       view = useEditorHistory({
+        open,
         scriptId: () => 'script-1',
         versionId: () => 'saved-current',
         document,
@@ -71,7 +76,7 @@ function editorView(options: {
     },
   })
   const wrapper = mount(Harness)
-  return { wrapper, view, document, protectedDraft }
+  return { wrapper, view, document, protectedDraft, open }
 }
 
 afterEach(() => {
@@ -84,6 +89,29 @@ beforeEach(() => {
 })
 
 describe('useEditorHistory', () => {
+  it('does no difference work while closed and only builds selected details while open', async () => {
+    const difference = vi.spyOn(historyDiff, 'historyDifference')
+    const history = Array.from({ length: 50 }, (_, seconds) => documentWith('wait', { seconds }))
+    const { wrapper, view, document, open } = editorView({ history, open: false })
+    await view.select('local:0')
+    expect(view.entries.value).toEqual([])
+    expect(view.difference.value).toBeUndefined()
+    expect(difference).not.toHaveBeenCalled()
+    open.value = true
+    expect(view.entries.value).toHaveLength(50)
+    expect(difference.mock.calls.filter(call => call[2] === false)).toHaveLength(49)
+    expect(difference.mock.calls.filter(call => call[2] !== false)).toHaveLength(0)
+    expect(view.difference.value?.changed).toBe(true)
+    expect(difference.mock.calls.filter(call => call[2] !== false)).toHaveLength(1)
+    open.value = false
+    view.cancel()
+    document.value = documentWith('home')
+    expect(view.entries.value).toEqual([])
+    expect(view.difference.value).toBeUndefined()
+    expect(difference).toHaveBeenCalledTimes(50)
+    expect(view.selectedDocument.value).toBeUndefined()
+    wrapper.unmount()
+  })
   it('keeps local and protected selections read-only and uses metadata timestamps', async () => {
     const protectedDraft: EditorDraft = {
       scriptId: 'script-1',

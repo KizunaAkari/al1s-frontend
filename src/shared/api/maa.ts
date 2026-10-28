@@ -54,6 +54,10 @@ export async function fetchApplication(id: string): Promise<MaaApplication> {
   return (await apiClient.get<MaaApplication>(`/maa/applications/${id}`)).data
 }
 
+export async function fetchScript(id: string): Promise<MaaScript> {
+  return (await apiClient.get<MaaScript>(`/maa/scripts/${id}`)).data
+}
+
 export async function fetchScripts(
   applicationId: string,
   cursor: string | null,

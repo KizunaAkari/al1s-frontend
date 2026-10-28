@@ -37,7 +37,7 @@ const finished = computed(() => detail.value?.status === 'completed' || detail.v
   || detail.value?.status === 'cancelled'
   || (detail.value?.status === 'issued' && Date.parse(detail.value.expires_at) <= Date.now()))
 const canStart = computed(() => !props.disabled && props.script.current_version_id
-  && props.device?.mode === 'mounted' && props.device.managing_terminal_id && (!saved.value || finished.value))
+  && props.device && props.device.mode !== 'unassigned' && props.device.managing_terminal_id && (!saved.value || finished.value))
 const labels = { issued: '等待终端领取', claimed: '终端已领取（不代表已开始执行）', completed: '测试已结束', expired: '测试许可已过期', cancelled: '已在领取前取消' }
 const eventLabels: Record<QuickTestEvent['kind'], string> = {
   started: '终端开始执行', step_started: '开始步骤', step_succeeded: '步骤完成',

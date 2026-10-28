@@ -24,6 +24,16 @@ it('loads on opening and shows exact module and local step', async () => {
   wrapper.unmount()
 })
 
+it('reloads details for the selected schedule execution without changing the task', async () => {
+  const get = vi.spyOn(apiClient, 'get').mockResolvedValue({ data: { items: [], next_cursor: null } })
+  const wrapper = drawer(); await flushPromises()
+  await wrapper.setProps({ executionId: 'execution-1' } as never); await flushPromises()
+  expect(get).toHaveBeenLastCalledWith('/tasks/task/details', { params: { cursor: undefined, execution_id: 'execution-1' } })
+  await wrapper.setProps({ executionId: 'execution-2' } as never); await flushPromises()
+  expect(get).toHaveBeenLastCalledWith('/tasks/task/details', { params: { cursor: undefined, execution_id: 'execution-2' } })
+  wrapper.unmount()
+})
+
 it('opens the lineup workspace for legacy single tasks without generic empty diagnostics', async () => {
   const ids=[10001,10002,10003,10004,20001,20002,10005,10006,10007,10008,20003,20004]
   const record={id:'record-1',name:'battle.png',task_id:'task',state:'success',review:null,annotation:null,needs_attention:false,
@@ -182,25 +192,25 @@ it('blocks duplicate confirmation while the first request is pending', async () 
   wrapper.unmount()
 })
 
-it('closing the drawer confirms all failure pages but leaves successful attempts alone', async () => {
-  const get = vi.spyOn(apiClient, 'get')
-    .mockResolvedValueOnce({ data: { items: [{ ...attempt }], next_cursor: 'page2' } })
-    .mockResolvedValueOnce({ data: { items: [{ ...attempt, attempt_id: 'b' }, { ...attempt, attempt_id: 'c', result: 'success' }], next_cursor: null } })
+it('closing only dismisses without other pages, downloads or confirmation', async () => {
+  const get = vi.spyOn(apiClient, 'get').mockResolvedValueOnce({ data: { items: [attempt], next_cursor: 'page2' } })
+    .mockResolvedValue({ data: { items: [], next_cursor: null } })
   const post = vi.spyOn(apiClient, 'post').mockResolvedValue({ data: null })
+  const remove = vi.spyOn(apiClient, 'delete')
   const wrapper = drawer(); await flushPromises()
   await wrapper.find('[data-close]').trigger('click'); await flushPromises()
-  expect(get).toHaveBeenLastCalledWith('/tasks/task/details', { params: { cursor: 'page2' } })
-  expect(post.mock.calls.map(call => call[0])).toEqual(['/tasks/task/attempts/a/confirm-failure', '/tasks/task/attempts/b/confirm-failure'])
+  expect(get).toHaveBeenCalledOnce()
+  expect(post).not.toHaveBeenCalled()
+  expect(remove).not.toHaveBeenCalled()
   expect(wrapper.emitted('update:modelValue')).toEqual([[false]])
   wrapper.unmount()
 })
-
-it('keeps the drawer open when close processing fails', async () => {
+it('closing still dismisses when confirmation would fail', async () => {
   vi.spyOn(apiClient, 'get').mockResolvedValue({ data: { items: [attempt], next_cursor: null } })
-  vi.spyOn(apiClient, 'post').mockRejectedValue(new Error('网络中断'))
+  const post = vi.spyOn(apiClient, 'post').mockRejectedValue(new Error('网络中断'))
   const wrapper = drawer(); await flushPromises()
   await wrapper.find('[data-close]').trigger('click'); await flushPromises()
-  expect(wrapper.text()).toContain('网络中断')
-  expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+  expect(post).not.toHaveBeenCalled()
+  expect(wrapper.emitted('update:modelValue')).toEqual([[false]])
   wrapper.unmount()
 })

@@ -6,6 +6,7 @@ import { historyDifference } from './history-diff'
 import { cloneJson } from './use-editor-drafts'
 
 type Context = {
+  open: Ref<boolean>
   scriptId: () => string; versionId: () => string | undefined
   document: Ref<ScriptDocument | undefined>; history: Ref<ScriptDocument[]>; metadata: Ref<HistoryMetadata[]>
   cursor: Ref<number>; protectedDraft: Ref<EditorDraft | undefined>
@@ -17,13 +18,13 @@ export function useEditorHistory(context: Context) {
   const next = ref<number | null>(null)
   let pageGeneration = 0, selectionGeneration = 0
   let pageController: AbortController | undefined, selectionController: AbortController | undefined
-  const local = computed(() => context.history.value.map((document, index) => ({
+  const local = computed(() => !context.open.value ? [] : context.history.value.map((document, index) => ({
     id: `local:${index}`, source: 'local' as const, label: index === 0 ? '初始状态' :
-      historyDifference(context.history.value[index - 1]!, document).summary,
+      historyDifference(context.history.value[index - 1]!, document, false).summary,
     time: context.metadata.value[index]?.time ?? null, steps: document.steps.length,
     current: index === context.cursor.value,
   })).reverse())
-  const entries = computed(() => [...local.value,
+  const entries = computed(() => !context.open.value ? [] : [...local.value,
     ...(context.protectedDraft.value?.history.map((document, index) => ({ id: `protected:${index}`,
       source: 'local' as const, label: `旧草稿 · 第 ${index + 1} 次修改`,
       time: context.protectedDraft.value?.historyMetadata?.[index]?.time ?? null, steps: document.steps.length,
@@ -77,10 +78,11 @@ export function useEditorHistory(context: Context) {
   function clear() {
     pageGeneration++; selectionGeneration++; pageController?.abort(); selectionController?.abort()
     listLoading.value = false; selectionLoading.value = false
+    selectedId.value = ''; selectedDocument.value = undefined; selectedVersion.value = undefined
   }
   watch(context.scriptId, clear)
   onBeforeUnmount(clear)
-  const difference = computed(() => selectedDocument.value && context.document.value
+  const difference = computed(() => context.open.value && selectedDocument.value && context.document.value
     ? historyDifference(context.document.value, selectedDocument.value) : undefined)
   return { entries, selectedId, selectedDocument, selectedVersion, error, difference, select, load, cancel: clear,
     loading: computed(() => listLoading.value || selectionLoading.value), more: computed(() => next.value !== null) }
