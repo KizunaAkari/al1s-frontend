@@ -12,6 +12,7 @@ import BotNavigation from './BotNavigation.vue'
 import BotStatusBar from './BotStatusBar.vue'
 import BotInteractionSettings from './BotInteractionSettings.vue'
 import BotInteractionTabs from './BotInteractionTabs.vue'
+import QuantSettings from './quant/QuantSettings.vue'
 import { botPanels, type BotPanel, type BotContainerState } from './bot-console-model'
 import type { BotRuntimeStatus } from '../../shared/api/bot-runtime'
 import './bot-console.css'
@@ -124,7 +125,7 @@ function openNative() {
   nativeLoading.value = true
   nativeOpen.value = true
 }
-watch(tab, () => { nativeOpen.value = false; selectedServiceId.value = null; containerState.value = null; runtimeStatus.value = null })
+watch(tab, () => { nativeOpen.value = false; selectedServiceId.value = null; containerState.value = null; runtimeStatus.value = null; if (tab.value === 'discord' && panel.value === 'quant') selectPanel('interaction') })
 onMounted(async () => {
   await load()
   try {
@@ -144,7 +145,7 @@ onBeforeUnmount(() => { requestNo++; detailNo++ })
       :busy="busy || Boolean(configuration?.busy)" :refreshing="Boolean(containers?.busy)" :more="Boolean(cursor)" @select="selectService" @create="createConnection" @more="load(true)" @refresh="refreshStatus" @status="runtimeStatus = $event" />
     <p v-if="error" class="bot-inline-error">{{ error }}</p>
     <div class="bot-console-body">
-      <BotNavigation :panel="panel" :connection-name="currentService?.name" :online="runtimeStatus?.state === 'online'"
+      <BotNavigation :panel="panel" :kind="tab" :connection-name="currentService?.name" :online="runtimeStatus?.state === 'online'"
         :interaction-enabled="Boolean(interaction?.savedEnabled)" @select="selectPanel" />
       <main class="bot-content-panel">
         <header class="bot-content-heading">
@@ -212,6 +213,10 @@ onBeforeUnmount(() => { requestNo++; detailNo++ })
           <div id="bot-interaction-workshop" v-show="interactionTab === 'workshop'" role="tabpanel" aria-labelledby="bot-interaction-workshop-tab" class="bot-workshop-panel">
             <MemeWorkshop v-if="workshopVisited" :platform="tab" />
           </div>
+        </div>
+        <div v-if="panel === 'quant' && tab === 'qq'" class="bot-panel-body">
+          <QuantSettings v-if="currentService" :key="currentService.service_id" :service-id="currentService.service_id" />
+          <p v-else class="bot-console-empty">请选择 QQ 连接，再配置量化工具。</p>
         </div>
       </main>
     </div>

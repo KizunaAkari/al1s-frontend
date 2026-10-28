@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { Setting, VideoPlay, Document, MagicStick, Search } from '@element-plus/icons-vue'
+import { Setting, VideoPlay, Document, MagicStick, Search, DataAnalysis } from '@element-plus/icons-vue'
 import { botPanels, type BotPanel } from './bot-console-model'
-const props = defineProps<{ panel: BotPanel; connectionName?: string; online?: boolean; interactionEnabled?: boolean }>()
+const props = defineProps<{ panel: BotPanel; kind?: 'qq' | 'discord'; connectionName?: string; online?: boolean; interactionEnabled?: boolean }>()
 const emit = defineEmits<{ select: [panel: BotPanel] }>()
 const search = ref('')
 const expanded = ref<Record<string, boolean>>({ '连接与运行': true, '功能设置': true })
 const groups = computed(() => ['连接与运行', '功能设置'].map(label => ({ label,
-  items: botPanels.filter(item => item.group === label && `${item.label} ${item.keywords}`.toLowerCase().includes(search.value.trim().toLowerCase())),
+  items: botPanels.filter(item => (item.id !== 'quant' || props.kind !== 'discord') && item.group === label && `${item.label} ${item.keywords}`.toLowerCase().includes(search.value.trim().toLowerCase())),
 })).filter(group => group.items.length))
-const icons = { connection: Setting, runtime: VideoPlay, records: Document, interaction: MagicStick }
+const icons = { connection: Setting, runtime: VideoPlay, records: Document, interaction: MagicStick, quant: DataAnalysis }
 </script>
 <template>
   <aside class="bot-console-navigation" aria-label="Bot功能导航">

@@ -295,6 +295,7 @@ const drafts = useEditorDrafts({
 const { history, historyCursor, draftError, checkpoint, scheduleDraft, persistDraft } = drafts
 const draftProtected = computed(() => ['invalid', 'conflict'].includes(drafts.recoveryState.value))
 const historyView = useEditorHistory({
+  open: historyOpen,
   scriptId: () => props.scriptId, versionId: () => script.value?.current_version_id ?? undefined,
   document, history, metadata: drafts.historyMetadata, cursor: historyCursor, protectedDraft: drafts.protectedDraft,
 })
