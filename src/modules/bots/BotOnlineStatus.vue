@@ -118,7 +118,7 @@ defineExpose({ refresh })
     <p v-if="reasonLabel && (!compact || status?.state !== 'online')" class="bot-online-detail">原因：{{ reasonLabel }}</p>
     <p v-if="errorLabel" class="bot-online-detail">错误：{{ errorLabel }}</p>
     <p v-if="activity && !compact" class="bot-online-detail">{{ activity.label }}：<time :datetime="activity.value">{{ activity.value }}</time></p>
-    <p v-if="failed" class="bot-online-error" role="alert">无法获取 Bot 在线状态，请稍后刷新。</p>
+    <p v-if="failed" class="bot-online-error" role="alert">{{ compact ? '无法获取 Bot 在线状态，稍后自动重试。' : '无法获取 Bot 在线状态，请稍后刷新。' }}</p>
     <button v-if="!compact" type="button" class="bot-online-refresh" :disabled="loading" @click="refresh">{{ loading ? '检查中…' : '刷新在线状态' }}</button>
   </section>
 </template>

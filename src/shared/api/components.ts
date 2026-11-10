@@ -75,11 +75,11 @@ export const componentApi = {
   async preflight(target: ComponentTarget, release_id: string) {
     targetKey(target)
     if (!release_id) throw new Error('请选择已发布版本')
-    return (await apiClient.post<ComponentPreflight>('/components/preflight', { target, release_id })).data
+    return (await apiClient.post<ComponentPreflight>('/components/preflight', { target, release_id }, { timeout: 28_000 })).data
   },
   async start(body: UpgradeRequest) {
     targetKey(body.target)
-    return (await apiClient.post<ComponentOperation>('/components/upgrades', body)).data
+    return (await apiClient.post<ComponentOperation>('/components/upgrades', body, { timeout: 28_000 })).data
   },
   async operations(cursor?: string, bot_alias?: 'qq' | 'discord') {
     return (await apiClient.get<Page<ComponentOperation>>('/components/operations', { params: { cursor, limit: 25, bot_alias } })).data

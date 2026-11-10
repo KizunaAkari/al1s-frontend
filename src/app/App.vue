@@ -11,6 +11,7 @@ import { useThemeStore } from './theme'
 import { clearEditorResume } from '../modules/maa/editor/editor-resume'
 const theme = useThemeStore()
 const route = useRoute()
+const botRoute = computed(() => route.path === '/bots')
 const editorRoute = computed(() => route.path === '/editor')
 const compactNav = ref(editorRoute.value)
 watch(editorRoute, value => { compactNav.value = value })
@@ -42,7 +43,7 @@ const navigation = [
 </script>
 <template>
   <RouterView v-if="route.path === '/login'" />
-  <div v-else class="app-shell" :class="{ 'compact-nav': compactNav, 'editor-page': editorRoute }">
+  <div v-else class="app-shell" :class="{ 'compact-nav': compactNav, 'editor-page': editorRoute, 'bot-console-page': botRoute }">
     <button v-if="menuOpen" class="nav-scrim" aria-label="关闭导航" @click="menuOpen = false" />
     <aside class="app-sidebar" :class="{ 'is-open': menuOpen }">
       <RouterLink class="brand" to="/" aria-label="AL-1S 系统概览" @click="menuOpen = false"><img v-if="compactNav" src="/favicon.svg" alt="AL-1S" class="compact-brand" /><BrandLogo v-else :light="theme.isDark" /></RouterLink>
@@ -63,7 +64,12 @@ const navigation = [
         <div v-if="editorRoute" id="editor-shell-header" class="editor-shell-header" />
         <div class="header-tools"><ThemeMenu /></div>
       </header>
-      <section class="app-content"><RouterView /></section>
+      <section class="app-content"><RouterView v-if="botRoute" @platform-navigation="menuOpen = true" /><RouterView v-else /></section>
     </main>
   </div>
 </template>
+
+<style>
+.bot-console-page .app-content { padding:0; container:bot-workspace / inline-size; }
+.bot-console-page .app-header { display:none; }
+</style>

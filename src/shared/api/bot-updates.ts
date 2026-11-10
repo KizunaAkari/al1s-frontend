@@ -8,7 +8,7 @@ export const botUpdateApi = {
       { params: { limit, cursor } })).data
   },
   async state(alias: BotAlias) {
-    return (await apiClient.get<BotUpdateState>(`/bots/updates/${alias}`)).data
+    return (await apiClient.get<BotUpdateState>(`/bots/updates/${alias}`, { timeout: 28_000 })).data
   },
   async checkQq() {
     return (await apiClient.post<Page<ComponentRelease>>('/bots/updates/qq/check', {}, { timeout: 35_000 })).data

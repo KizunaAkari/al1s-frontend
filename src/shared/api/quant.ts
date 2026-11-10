@@ -26,7 +26,7 @@ export const saveQuantCredential = async (provider: CredentialProvider, secret: 
   (await apiClient.put<{ configured: boolean }>(`/bots/quant/credentials/${provider}`, { secret })).data
 export const fetchQuantSettings = async (id: string) =>
   (await apiClient.get<QuantView>(`/bots/quant/settings/${id}`)).data
-export const saveQuantSettings = async (id: string, value: QuantWrite, version: number, operation: string) =>
+export const saveQuantSettings = async (id: string, value: QuantWrite | Pick<QuantWrite, 'settings'>, version: number, operation: string) =>
   (await apiClient.put<QuantView>(`/bots/quant/settings/${id}`, value, {
     headers: { 'If-Match': String(version), 'Idempotency-Key': operation },
   })).data

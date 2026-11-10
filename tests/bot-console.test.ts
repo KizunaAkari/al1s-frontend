@@ -31,6 +31,9 @@ beforeEach(() => {
   api.runtime.mockImplementation(async (id: string) => ({ service_id: id, state: 'offline',
     checked_at: '2026-10-09T09:00:00Z', observed_at: null, reason_code: 'qq_not_logged_in', error_code: null }))
   api.get.mockImplementation(async (path: string) => {
+    if (/^\/bots\/containers\/(qq|discord)\/logs$/.test(path)) return { data: {
+      observed_at: '2026-11-10T00:00:00Z', items: [], scan_limited: false,
+    } }
     if (/^\/bots\/updates\/(qq|discord)\/versions$/.test(path)) return { data: { items: [], next_cursor: null } }
     if (path.startsWith('/components/')) return { data: { items: [], next_cursor: null } }
     if (path.startsWith('/bots/updates/')) return { data: { alias: path.endsWith('/qq') ? 'qq' : 'discord',
@@ -49,7 +52,7 @@ beforeEach(() => {
 })
 afterEach(() => { wrapper?.unmount(); wrapper = undefined })
 async function consolePage() {
-  wrapper = mount(BotManagement, { global: { directives: { loading: {} } } })
+  wrapper = mount(BotManagement, { global: { directives: { loading: {} }, stubs: { ThemeMenu: true } } })
   await flushPromises()
   return wrapper
 }
@@ -62,17 +65,56 @@ it('uses a two-platform console with contextual navigation and lazy workshop con
   expect(page.get('[aria-label="互动表情子页"]').findAll('[role="tab"]')).toHaveLength(2)
   expect(page.get('[data-panel="interaction"]').text()).toContain('互动表情')
   expect(page.text()).toContain('当前连接')
-  expect(page.text()).toContain('发送频率')
+  expect(page.text()).toContain('平台发送间隔')
   expect(api.templates).not.toHaveBeenCalled()
   await page.get('[data-interaction-tab="workshop"]').trigger('click')
   await flushPromises()
   expect(api.templates).toHaveBeenCalledTimes(1)
   expect((page.get('#bot-interaction-settings').element as HTMLElement).style.display).toBe('none')
   expect((page.get('#bot-interaction-workshop').element as HTMLElement).style.display).not.toBe('none')
-  expect(page.get('.bot-content-heading h2').text()).toBe('表情包工坊')
+  expect(page.get('[data-interaction-tab="workshop"]').attributes('aria-selected')).toBe('true')
   await page.get('[data-interaction-tab="settings"]').trigger('click')
   await page.get('[data-interaction-tab="workshop"]').trigger('click')
   expect(api.templates).toHaveBeenCalledTimes(1)
+})
+
+it('keeps the deployed trading dashboard and both engine tabs in the source build', async () => {
+  wrapper = mount(BotManagement, { global: { directives: { loading: {} }, stubs: {
+    ThemeMenu: true, QuantSettings: { template: '<label><span data-label-text>佣金比例</span><input data-label-input></label>' }, FreqtradeSettings: { template: '<div />' },
+  } } })
+  await flushPromises()
+  const page = wrapper
+  await page.get('[data-panel="quant"]').trigger('click')
+  await flushPromises()
+  expect(page.get('#bot-engine-dashboard').attributes('aria-selected')).toBe('true')
+  expect(page.get('#trading-dashboard').text()).toContain('A股 · AKQuant')
+  expect(page.get('#trading-dashboard').text()).toContain('虚拟币 · Freqtrade')
+  await page.get('#bot-engine-akquant').trigger('click')
+  expect(page.get('#bot-engine-akquant').attributes('aria-selected')).toBe('true')
+  const labelClick = new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 })
+  page.get('[data-label-text]').element.dispatchEvent(labelClick)
+  expect(labelClick.defaultPrevented).toBe(true)
+  const inputClick = new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 })
+  page.get('[data-label-input]').element.dispatchEvent(inputClick)
+  expect(inputClick.defaultPrevented).toBe(false)
+  await page.get('#bot-engine-freqtrade').trigger('click')
+  expect(page.get('#bot-engine-freqtrade').attributes('aria-selected')).toBe('true')
+})
+
+it('keeps connection controls in maintenance and restores the runtime log entry', async () => {
+  const page = await consolePage()
+  const entries = page.get('[aria-label="Bot功能导航"]').findAll('[data-panel]')
+  expect(entries.slice(0, 2).map(item => item.attributes('data-panel'))).toEqual(['runtime', 'records'])
+  expect(page.find('[data-panel="connection"]').exists()).toBe(false)
+  await page.get('[data-panel="runtime"]').trigger('click')
+  expect(page.get('main').attributes('aria-label')).toBe('运维面板')
+  expect(page.find('.bot-config').exists()).toBe(true)
+  await page.get('[data-panel="records"]').trigger('click')
+  await flushPromises()
+  expect(page.get('main').attributes('aria-label')).toBe('运行日志')
+  expect(api.get).toHaveBeenCalledWith('/bots/containers/qq/logs', expect.objectContaining({
+    params: { source: 'all', level: 'important' },
+  }))
 })
 
 it('retains settings and workshop drafts across child pages, navigation and platform changes', async () => {
@@ -123,21 +165,17 @@ it('keeps the only account monitor in the status banner and does not infer onlin
   expect(page.findAll('[aria-label="Bot 在线状态"]')).toHaveLength(1)
 })
 
-it('keeps connection scopes and platform intervals as separate saves', async () => {
+it('saves connection scopes and platform intervals through the unified save action', async () => {
   const page = await consolePage()
-  expect(page.find('[data-action="add-scope"]').exists()).toBe(true)
-  await page.get('[data-action="add-scope"]').trigger('click')
-  await page.get('[data-field="scope-entry"]').setValue('987654321')
-  await page.get('[data-action="confirm-scope"]').trigger('click')
+  await page.get('.qq-group-button').trigger('click')
+  await page.get('[aria-label="QQ群号"]').setValue('987654321')
+  await page.get('.qq-group-entry button').trigger('click')
+  await page.get('[data-field="global-qq"]').setValue(9)
   await page.get('[data-action="save-meme-settings"]').trigger('click')
   await flushPromises()
   expect(api.saveSettings).toHaveBeenCalledWith(expect.objectContaining({ bot_service_id: 'qq-1',
     scopes: [{ kind: 'qq_group', target_id: '123456789', guild_id: null },
       { kind: 'qq_group', target_id: '987654321', guild_id: null }] }), expect.any(String))
-  expect(api.saveRate).not.toHaveBeenCalled()
-  await page.get('[data-field="global-qq"]').setValue(9)
-  await page.get('[data-action="save-global-qq"]').trigger('click')
-  await flushPromises()
   expect(api.saveRate).toHaveBeenCalledWith('qq', 9, 2)
   expect(api.saveSettings).toHaveBeenCalledTimes(1)
 })
@@ -167,13 +205,13 @@ it('searches navigation locally and follows the selected connection', async () =
 
 it('does not silently drop a typed scope that has not been added', async () => {
   const page = await consolePage()
-  await page.get('[data-action="add-scope"]').trigger('click')
-  await page.get('[data-field="scope-entry"]').setValue('987654321')
+  await page.get('.qq-group-button').trigger('click')
+  await page.get('[aria-label="QQ群号"]').setValue('987654321')
   await page.get('[data-action="save-meme-settings"]').trigger('click')
   await flushPromises()
   expect(api.saveSettings).not.toHaveBeenCalled()
-  expect(page.text()).toContain('请先点击添加范围')
-  expect(page.get('[data-field="scope-entry"]').element).toHaveProperty('value', '987654321')
+  expect(page.text()).toContain('请先添加或清空待输入的群号')
+  expect(page.get('[aria-label="QQ群号"]').element).toHaveProperty('value', '987654321')
 })
 
 it('does not label an unsaved default connection configuration as saved', async () => {

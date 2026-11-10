@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import * as api from '../../../shared/api/memes'
 import type { AvatarSlot, MemeRecord, MemeTemplate, PreviewInput, TextSlot } from '../../../shared/api/memes'
 import MemeCanvas from './MemeCanvas.vue'
+import BotSwitchRow from '../BotSwitchRow.vue'
 import { avatarSlot, defaultLayout, normalizeSlot, textSlot } from './layout'
 import { PreviewSession } from './preview-session'
 import sampleAvatar from '../../../assets/bot-discord.png'
@@ -203,7 +204,10 @@ onBeforeUnmount(() => {
       <label>模板名称<input v-model="draft.name" maxlength="64"></label>
       <label>主关键词<input v-model="draft.keyword" maxlength="32"></label>
       <label>别名<input v-model="aliases" placeholder="用空格分隔，最多8个"></label>
-      <div class="meme-flags"><label><input v-model="draft.enabled" type="checkbox">启用</label><label><input v-model="draft.random_enabled" type="checkbox">参与随机</label></div>
+      <div class="bot-switch-list">
+        <BotSwitchRow v-model="draft.enabled" title="启用" description="启用后可以使用此模板。" />
+        <BotSwitchRow v-model="draft.random_enabled" title="参与随机" description="允许随机选择时使用此模板。" />
+      </div>
     </div>
     <template v-if="draft.layout.engine === 'composite'">
       <div class="meme-toolbar">
@@ -255,7 +259,7 @@ onBeforeUnmount(() => {
     </section>
     <p v-if="error" class="meme-error">{{ error }}</p><p v-if="notice" class="meme-notice">{{ notice }}</p>
     </fieldset>
-    <footer><span class="meme-caption">{{ dirty ? '有未保存修改' : '当前模板' }}</span><button class="primary" type="button" :disabled="controlsLocked || uploading" @click="save">{{ busy ? '保存中…' : '保存模板' }}</button></footer>
+    <footer><span class="meme-caption">{{ dirty ? '有未保存修改' : '当前模板' }}</span><button class="primary" type="button" :disabled="controlsLocked || uploading" @click="save">{{ busy ? '保存中…' : '保存' }}</button></footer>
   </section>
 </template>
 

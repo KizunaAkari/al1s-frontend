@@ -199,14 +199,14 @@ function selectService(id: string) {
   if (busy.value || !available.value.some(item => item.service_id === id)) return
   creating.value = false; selectedId.value = id
 }
-function startCreate() { if (!busy.value) creating.value = true }
 onBeforeUnmount(() => { versionRequest++ })
-defineExpose({ selectService, startCreate, busy: computed(() => busy.value || loadingVersion.value || resolvingApplication.value) })
+defineExpose({ selectService, busy: computed(() => busy.value || loadingVersion.value || resolvingApplication.value) })
 </script>
 
 <template>
   <section class="bot-card bot-config">
     <div v-if="!consoleMode" class="bot-card-heading"><h2>连接配置 </h2><span class="bot-pill">{{ available.length ? `${available.length} 个连接` : '暂无连接' }}</span></div>
+    <div v-else class="bot-card-heading"><h2>连接配置</h2></div>
     
     <el-alert v-if="error" :title="error" type="error" :closable="false" show-icon />
     <el-alert v-if="notice" :title="notice" type="info" :closable="false" show-icon />
@@ -228,7 +228,7 @@ defineExpose({ selectService, startCreate, busy: computed(() => busy.value || lo
         </template>
         <div v-if="kind === 'qq'" class="bot-field"><label for="bot-secret">OneBot 访问令牌（可选） <HelpHint subject="OneBot 访问令牌">令牌不会回显；已设置令牌时，提交新版本需重新输入。</HelpHint></label><el-input id="bot-secret" v-model="fields.secret" type="password" show-password autocomplete="new-password" :placeholder="secretConfigured ? '已设置；更新配置时重新输入' : '输入令牌'" /></div>
       </div>
-      <div class="bot-actions"><el-button type="primary" :loading="busy" :disabled="loadingVersion" @click="run(save)">保存配置</el-button><el-button v-if="kind === 'qq'" :loading="busy" :disabled="!current.desired_config_version_id" @click="run(probe)">验证连接</el-button><el-button v-else :loading="busy" @click="run(registration)">生成注册码</el-button></div>
+      <div class="bot-actions"><el-button type="primary" :loading="busy" :disabled="loadingVersion" @click="run(save)">保存</el-button><el-button v-if="kind === 'qq'" :loading="busy" :disabled="!current.desired_config_version_id" @click="run(probe)">验证连接</el-button><el-button v-else :loading="busy" @click="run(registration)">生成注册码</el-button></div>
       <div v-if="grant" class="bot-grant"><el-input :model-value="grant" readonly type="password" show-password /><el-button @click="grant = ''">隐藏</el-button></div>
       <MemeConnectionSettings v-if="!consoleMode" :key="current.service_id" :service-id="current.service_id" :kind="kind" />
       

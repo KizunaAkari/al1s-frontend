@@ -36,6 +36,7 @@ const statusStub = defineComponent({
 const global = {
   directives: { loading: { mounted() {} } },
   stubs: {
+    ThemeMenu: true,
     BotConfiguration: configurationStub,
     BotStatusBar: statusStub,
     BotInteractionSettings: true,

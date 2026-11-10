@@ -64,6 +64,55 @@ html { min-width: 320px; background: var(--bg); }
 body { min-width: 320px; min-height: 100vh; margin: 0; background: var(--bg); color: var(--text); }
 button, input, select, textarea { font: inherit; }
 button { color: inherit; }
+.drawing-settings .drawing-modal-header > button[aria-label="关闭"],
+.maa-library .library-header-actions > button[aria-label="关闭脚本库"],
+.el-dialog .el-dialog__headerbtn, .el-message-box .el-message-box__headerbtn, .el-drawer .el-drawer__close-btn {
+  display: inline-flex; align-items: center; justify-content: center; align-self: flex-start;
+  flex: 0 0 36px; width: 36px; min-width: 36px; height: 36px; min-height: 36px; padding: 0;
+  border: 0; border-radius: 8px; background: transparent; color: var(--muted);
+  font-size: 22px; font-weight: 400; line-height: 1; cursor: pointer;
+}
+.drawing-settings .drawing-modal-header > button[aria-label="关闭"]:not(:disabled):hover,
+.maa-library .library-header-actions > button[aria-label="关闭脚本库"]:not(:disabled):hover,
+.el-dialog .el-dialog__headerbtn:not(:disabled):hover, .el-message-box .el-message-box__headerbtn:not(:disabled):hover,
+.el-drawer .el-drawer__close-btn:not(:disabled):hover {
+  background: var(--accent-soft); color: var(--accent);
+}
+.drawing-settings .drawing-modal-header > button[aria-label="关闭"]:focus-visible,
+.maa-library .library-header-actions > button[aria-label="关闭脚本库"]:focus-visible,
+.el-dialog .el-dialog__headerbtn:focus-visible, .el-message-box .el-message-box__headerbtn:focus-visible,
+.el-drawer .el-drawer__close-btn:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+.drawing-settings .drawing-modal-header > button[aria-label="关闭"]:disabled,
+.maa-library .library-header-actions > button[aria-label="关闭脚本库"]:disabled,
+.el-dialog .el-dialog__headerbtn:disabled, .el-message-box .el-message-box__headerbtn:disabled,
+.el-drawer .el-drawer__close-btn:disabled { opacity: .5; cursor: not-allowed; }
+.drawing-settings .drawing-modal-header > button[aria-label="关闭"]:not(:disabled):active,
+.maa-library .library-header-actions > button[aria-label="关闭脚本库"]:not(:disabled):active,
+.el-dialog .el-dialog__headerbtn:not(:disabled):active, .el-message-box .el-message-box__headerbtn:not(:disabled):active,
+.el-drawer .el-drawer__close-btn:not(:disabled):active { transform: scale(.96); }
+.maa-library .library-header-actions > button[aria-label="关闭脚本库"] .el-icon,
+.el-dialog .el-dialog__headerbtn .el-icon, .el-message-box .el-message-box__headerbtn .el-icon,
+.el-drawer .el-drawer__close-btn .el-icon {
+  color: inherit; font-size: 18px;
+}
+.el-dialog .el-dialog__headerbtn { top: 6px; right: 6px; }
+.el-message-box .el-message-box__headerbtn { top: 2px; right: 2px; }
+#ai-panel-access .bot-switch-label, #bot-interaction-settings .bot-switch-label,
+#quant-panel-general .bot-switch-label, #freqtrade-panel-general .bot-switch-label {
+  min-height: 52px; padding: 8px 0;
+}
+#ai-panel-access .bot-setting-line, #ai-panel-access .ai-general-row, #ai-panel-access .qq-groups,
+#bot-interaction-settings .bot-setting-row, #bot-interaction-settings .qq-groups,
+#bot-interaction-settings .rate-limits-console, #quant-panel-general .bot-setting-line,
+#quant-panel-general .qq-groups, #freqtrade-panel-general .bot-setting-line, #freqtrade-panel-general .qq-groups {
+  padding-block: 8px;
+}
+#quant-panel-general .quant-fields, #freqtrade-panel-general .freqtrade-fields { row-gap: 10px; }
+#quant-panel-general .quant-switches, #freqtrade-panel-general .freqtrade-switches { margin-block: 12px; }
+.bot-console .bot-interaction-settings .meme-console .bot-setting-rows { row-gap: 12px; }
+.bot-console .bot-interaction-settings .meme-console .bot-setting-row:has(input[type=checkbox]) { padding-block: 8px; }
 .el-dialog__footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
 .el-dialog__footer .el-button { margin-left: 0; }
 code { color: var(--muted); font: 500 12px/1.5 ui-monospace, "SFMono-Regular", Consolas, monospace; }

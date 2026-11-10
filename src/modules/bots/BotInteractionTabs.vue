@@ -21,7 +21,7 @@ function navigate(event: KeyboardEvent) {
   <div class="bot-interaction-tabs" role="tablist" aria-label="互动表情子页" @keydown="navigate">
     <button id="bot-interaction-settings-tab" ref="settingsButton" type="button" role="tab" data-interaction-tab="settings"
       aria-controls="bot-interaction-settings" :aria-selected="modelValue === 'settings'" :tabindex="modelValue === 'settings' ? 0 : -1"
-      @click="emit('update:modelValue', 'settings')">使用设置</button>
+      @click="emit('update:modelValue', 'settings')">通用设置</button>
     <button id="bot-interaction-workshop-tab" ref="workshopButton" type="button" role="tab" data-interaction-tab="workshop"
       aria-controls="bot-interaction-workshop" :aria-selected="modelValue === 'workshop'" :tabindex="modelValue === 'workshop' ? 0 : -1"
       @click="emit('update:modelValue', 'workshop')">表情包工坊</button>

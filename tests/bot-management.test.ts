@@ -53,7 +53,7 @@ it('requires a connection name and maps the QQ form without raw JSON or a mandat
   const addressHelp = await helpText(wrapper, 'OneBot HTTP 地址')
   expect(addressHelp).toContain('浏览器无法打开这个地址')
   expect(addressHelp).toContain('“原生管理页”入口')
-  await button(wrapper, '保存配置').trigger('click')
+  await button(wrapper, '保存').trigger('click')
   await flushPromises()
   expect(api.saveBotConfig).toHaveBeenCalledWith(
     service, { ONEBOT_BASE_URL: 'http://al1s-llbot:3000' }, null, null, expect.any(String),
@@ -70,7 +70,7 @@ it('prefills nonsecret settings but requires reentry of an existing token', asyn
   await flushPromises()
   expect((wrapper.get('#bot-url').element as HTMLInputElement).value).toBe('http://al1s-llbot:3001')
   expect((wrapper.get('#bot-secret').element as HTMLInputElement).value).toBe('')
-  await button(wrapper, '保存配置').trigger('click')
+  await button(wrapper, '保存').trigger('click')
   await flushPromises()
   expect(wrapper.text()).toContain('重新输入令牌')
   expect(api.saveBotConfig).not.toHaveBeenCalled()
@@ -91,7 +91,7 @@ it('gets the Application ID from the Bot Token and sends both to separate fields
 
   expect(wrapper.find('#bot-owners').exists()).toBe(false)
   expect(wrapper.find('#bot-linked').exists()).toBe(false)
-  await button(wrapper, '保存配置').trigger('click')
+  await button(wrapper, '保存').trigger('click')
   await flushPromises()
   expect(api.saveBotConfig).toHaveBeenCalledWith(discord, {
     DISCORD_APPLICATION_ID: '1234567890123456789',
@@ -116,7 +116,7 @@ it('drops retired forwarding settings when the Discord Token is updated', async 
   const wrapper = view([service, discord], 'discord')
   await flushPromises()
   await wrapper.get('#bot-secret').setValue('new.long.bot.token.with.many.characters')
-  await button(wrapper, '保存配置').trigger('click')
+  await button(wrapper, '保存').trigger('click')
   await flushPromises()
   expect(api.saveBotConfig).toHaveBeenCalledWith(discord, {
     DISCORD_APPLICATION_ID: '1234567890123456789',
@@ -128,7 +128,7 @@ it('resolves on save and does not submit if the current Token cannot be resolved
   const wrapper = view([service, discord], 'discord')
   await flushPromises()
   await wrapper.get('#bot-secret').setValue('first.bot.token.with.many.characters')
-  await button(wrapper, '保存配置').trigger('click')
+  await button(wrapper, '保存').trigger('click')
   await flushPromises()
   expect(api.saveBotConfig).toHaveBeenCalledTimes(1)
 
@@ -136,7 +136,7 @@ it('resolves on save and does not submit if the current Token cannot be resolved
   await flushPromises()
   expect((wrapper.get('#bot-application').element as HTMLInputElement).value).toBe('')
   api.resolveDiscordApplicationId.mockRejectedValueOnce(new Error('Discord 未接受这个 Bot Token。'))
-  await button(wrapper, '保存配置').trigger('click')
+  await button(wrapper, '保存').trigger('click')
   await flushPromises()
   expect(wrapper.text()).toContain('Discord 未接受这个 Bot Token。')
   expect(api.saveBotConfig).toHaveBeenCalledTimes(1)
